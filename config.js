@@ -13,5 +13,5 @@ window.MOA_CONFIG = {
   kakaoKey: '',
   googleKey: '',
   // 실시간 공유방 서버 (moa-travel-server 폴더의 Cloudflare Worker)
-  syncUrl: /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://127.0.0.1:8787' : '',
+  syncUrl: /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://127.0.0.1:8787' : 'https://moatravel-rooms.moatravel.workers.dev',
 };
