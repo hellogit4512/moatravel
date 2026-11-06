@@ -328,6 +328,13 @@ h3{margin:0;font-size:16px;font-weight:700;letter-spacing:-.015em}
 .results button+button{border-top:1px solid var(--line)}
 .results button:hover{background:var(--sunk)}
 .results .hint{padding:12px;font-size:13px;color:var(--muted)}
+.picker-map{height:260px;border-radius:var(--r-sm);overflow:hidden;border:1px solid var(--line);background:var(--sunk);cursor:crosshair}
+.stop.visited .stop-name{color:var(--faint);text-decoration:line-through;text-decoration-color:var(--line-2)}
+.stop.visited .stop-no{background:var(--faint)}
+.visit{width:28px;height:28px;border-radius:50%;border:1.5px solid var(--line-2);background:none;display:grid;place-items:center;color:transparent;flex:none}
+.visit.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.locked{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 18px;border-radius:var(--r);background:var(--accent-soft);margin-bottom:16px;font-size:14px}
+.locked b{color:var(--accent)}
 .amount-input{font-family:var(--serif);font-size:28px!important;font-weight:700;height:58px!important;letter-spacing:-.02em}
 @keyframes fade{from{opacity:0}}
 @keyframes rise{from{opacity:0;transform:translateY(14px) scale(.98)}}

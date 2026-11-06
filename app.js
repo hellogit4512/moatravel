@@ -392,6 +392,42 @@ function googleImpl(el, onPick) {
     destroy() { objs.forEach((o) => o.setMap(null)); },
   };
 }
+// 장소 추가 창 안의 "지도에서 직접 고르기"
+async function mountPicker(el, r, start, onPick) {
+  const pv = provider(r), ok = await sdk(pv);
+  const c = start || center(r) || (pv === 'kakao' || KR.test(r.dest) ? [37.5665, 126.978] : null);
+  if (ok && pv === 'kakao') {
+    const K = kakao.maps;
+    const m = new K.Map(el, { center: new K.LatLng(...(c || [37.5665, 126.978])), level: start ? 4 : 7 });
+    const mk = new K.Marker({ position: m.getCenter() }); if (start) mk.setMap(m);
+    K.event.addListener(m, 'click', (e) => { mk.setPosition(e.latLng); mk.setMap(m); onPick(e.latLng.getLat(), e.latLng.getLng()); });
+    return;
+  }
+  if (ok && pv === 'google') {
+    const G = google.maps;
+    const m = new G.Map(el, { center: c ? { lat: c[0], lng: c[1] } : { lat: 20, lng: 0 }, zoom: start ? 15 : c ? 11 : 2, disableDefaultUI: true, zoomControl: true, clickableIcons: false, gestureHandling: 'greedy' });
+    const mk = new G.Marker({ map: start ? m : null, position: start ? { lat: start[0], lng: start[1] } : null });
+    m.addListener('click', (e) => { mk.setPosition(e.latLng); mk.setMap(m); onPick(e.latLng.lat(), e.latLng.lng()); });
+    return;
+  }
+  if (!window.L) return;
+  const m = L.map(el).setView(c || [20, 0], start ? 16 : c ? 11 : 2);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(m);
+  const icon = L.divIcon({ className: '', html: '<div class="pin" style="--c:var(--warm)"><span></span></div>', iconSize: [28, 28], iconAnchor: [14, 28] });
+  let mk = start ? L.marker(start, { icon }).addTo(m) : null;
+  m.on('click', (e) => { if (mk) mk.setLatLng(e.latlng); else mk = L.marker(e.latlng, { icon }).addTo(m); onPick(e.latlng.lat, e.latlng.lng); });
+  setTimeout(() => m.invalidateSize(), 50);
+}
+async function reverseAddr(lat, lng) {
+  if (window.kakao?.maps?.services && !failed.kakao) {
+    const a = await new Promise((res) => new kakao.maps.services.Geocoder().coord2Address(lng, lat, (d, st) => res(st === kakao.maps.services.Status.OK ? d[0] : null)));
+    if (a) return a.road_address?.address_name || a.address?.address_name || '';
+  }
+  try {
+    const js = await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&accept-language=ko&lat=${lat}&lon=${lng}`)).json();
+    return (js.display_name || '').split(',').slice(0, 5).reverse().map((s) => s.trim()).join(' ');
+  } catch (e) { return ''; }
+}
 function pickOnMap(id) {
   const card = $(`.place[data-pid="${id}"]`);
   if (card && card.offsetParent) { card.scrollIntoView({ behavior: 'smooth', block: 'center' }); card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash'); }
@@ -655,11 +691,14 @@ function placesTab(r) {
   let list = r.places.slice();
   if (ui.filter === 'none') list = list.filter((p) => !p.day);
   else if (ui.filter !== 'all') list = list.filter((p) => p.cat === ui.filter);
+  const q = ui.q.trim().toLowerCase();
+  if (q) list = list.filter((p) => `${p.name} ${p.addr || ''} ${p.memo || ''} ${member(r, p.by).name}`.toLowerCase().includes(q));
   list.sort(ui.sort === 'heart' ? (a, b) => b.hearts.length - a.hearts.length || b.at - a.at : (a, b) => b.at - a.at);
   const wide = isWide(), showMap = wide || ui.view === 'map', showList = wide || ui.view === 'list';
   const pv = provider(r);
   return `<div class="sec"><div><h2>우리의 가고 싶은 곳</h2><p>누구의 제안이든 좋아요. 마음에 들면 하트를 눌러주세요.</p></div>
     <div class="acts"><button class="btn pri" data-act="add-place">${I('plus')}장소 제안</button></div></div>
+  ${r.places.length > 3 ? `<div class="input-wrap" style="margin-bottom:12px">${I('search', 16)}<input type="search" data-q value="${esc(ui.q)}" placeholder="모아둔 곳에서 찾기 — 이름, 주소, 한마디, 제안한 사람" aria-label="모아둔 곳 검색"></div>` : ''}
   <div class="toolbar">
     <div class="chips" role="tablist">
       <button class="chip ${ui.filter === 'all' ? 'on' : ''}" data-act="filter" data-k="all">전체 ${r.places.length}</button>
@@ -684,8 +723,8 @@ function placesTab(r) {
 function placeCard(r, p) {
   const c = cat(p.cat), by = member(r, p.by), me = meId(r), on = p.hearts.includes(me), open = ui.openCmt[p.id];
   const days = dayCount(r);
-  return `<article class="place" data-pid="${p.id}">
-    <div class="place-meta"><span class="dot" style="--c:${c.c}"></span><span>${c.n}</span><span>·</span>${av(by, 18)}<span>${esc(by.name)}</span>${p.day ? `<span class="sp"></span><span class="tag accent">${p.day}일차${p.time ? ' ' + p.time : ''}</span>` : ''}</div>
+  return `<article class="place" data-pid="${p.id}" data-s="${esc(`${p.name} ${p.addr || ''} ${p.memo || ''} ${by.name}`.toLowerCase())}">
+    <div class="place-meta"><span class="dot" style="--c:${c.c}"></span><span>${c.n}</span><span>·</span>${av(by, 18)}<span>${esc(by.name)}</span>${p.day ? `<span class="sp"></span>${p.visited ? '<span class="tag">다녀옴</span>' : ''}<span class="tag accent">${p.day}일차${p.time ? ' ' + p.time : ''}</span>` : ''}</div>
     <h3 class="place-name">${esc(p.name)}</h3>
     ${p.addr ? `<div class="place-addr">${esc(p.addr)}</div>` : ''}
     ${p.memo ? `<p class="place-memo">${esc(p.memo)}</p>` : ''}
@@ -697,10 +736,10 @@ function placeCard(r, p) {
       ${p.lat ? `<button class="btn ghost sm icon" data-act="locate" data-id="${p.id}" aria-label="지도에서 보기" title="지도에서 보기">${I('pin', 16)}</button>` : ''}
       <button class="btn ghost sm icon" data-act="place-menu" data-id="${p.id}" aria-label="더보기">${I('more', 18)}</button>
     </div>
-    <div class="days-pick"><span class="lbl">언제 갈까요</span><div class="seg">
+    ${r.confirmed ? '' : `<div class="days-pick"><span class="lbl">언제 갈까요</span><div class="seg">
       <button class="${!p.day ? 'on' : ''}" data-act="set-day" data-id="${p.id}" data-d="0">미정</button>
       ${Array.from({ length: days }, (_, i) => `<button class="${p.day === i + 1 ? 'on' : ''}" data-act="set-day" data-id="${p.id}" data-d="${i + 1}">${i + 1}일차</button>`).join('')}
-    </div></div>
+    </div></div>`}
     ${open ? `<div class="comments">
       ${p.comments.map((cm) => `<div class="cmt">${av(member(r, cm.by), 24)}<div class="grow"><b>${esc(member(r, cm.by).name)}</b> <span class="faint" style="font-size:12px">${timeAgo(cm.at)}</span><div>${esc(cm.text)}</div></div>${cm.by === me ? `<button class="btn ghost icon sm" data-act="del-cmt" data-id="${p.id}" data-c="${cm.id}" aria-label="의견 삭제">${I('x', 14)}</button>` : ''}</div>`).join('') || '<div class="faint" style="font-size:13px">아직 의견이 없어요. 첫 의견을 남겨보세요.</div>'}
       <form class="cmt-form" data-form="cmt" data-id="${p.id}"><input type="text" name="t" placeholder="의견 남기기" maxlength="300" aria-label="의견"><button class="btn pri sm">등록</button></form>
@@ -746,7 +785,8 @@ function placeModal(r, p) {
       <label class="field"><span>이름</span><input type="text" name="name" required maxlength="60" value="${esc(p.name)}"></label>
       <div class="field"><span>분류</span><div class="chips" style="flex-wrap:wrap">${CATS.map((c) => `<label class="chip ${p.cat === c.k ? 'on' : ''}"><input type="radio" name="cat" value="${c.k}" ${p.cat === c.k ? 'checked' : ''}><span class="dot" style="--c:${c.c}"></span>${c.n}</label>`).join('')}</div></div>
       <label class="field"><span>주소</span><input type="text" name="addr" maxlength="140" value="${esc(p.addr)}"></label>
-      <div class="loc faint" style="font-size:12.5px;margin-top:-8px;display:flex;align-items:center;gap:4px">${I('pin', 14)}${p.lat ? '지도 위치가 연결됐어요' : '검색해서 고르면 지도에 표시돼요'}</div>
+      <div class="row" style="margin-top:-8px;gap:6px"><div class="loc faint grow" style="font-size:12.5px;display:flex;align-items:center;gap:4px">${I('pin', 14)}${p.lat ? '지도 위치가 연결됐어요' : '검색하거나 지도에서 직접 고르면 표시돼요'}</div><button type="button" class="btn sm" data-pickmap>${I('map', 15)}지도에서 고르기</button></div>
+      <div class="picker hidden"><div class="picker-map"></div><div class="faint" style="font-size:12px;margin-top:6px">지도를 눌러 위치를 찍으세요. 주소는 자동으로 채워져요.</div></div>
       <label class="field"><span>한마디 <small>· 왜 가고 싶은지</small></span><textarea name="memo" maxlength="300" placeholder="여기 노을이 진짜 예쁘대!">${esc(p.memo)}</textarea></label>
       <label class="field"><span>참고 링크 <small>· 인스타, 블로그 등</small></span><input type="url" name="url" value="${esc(p.url || '')}" placeholder="https://"></label>`,
     ok: isNew ? '제안하기' : '저장',
@@ -780,6 +820,19 @@ function placeModal(r, p) {
       box.innerHTML = ''; form.memo.focus();
     }));
   };
+  const setLoc = () => { $('.loc', form).innerHTML = `${I('check', 14, 2.2)}<span style="color:var(--accent)">지도 위치가 연결됐어요</span>`; };
+  $('[data-pickmap]', form).addEventListener('click', (e) => {
+    const box = $('.picker', form);
+    if (!box.classList.contains('hidden')) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden'); e.currentTarget.classList.add('on');
+    if (box.dataset.ready) return; box.dataset.ready = 1;
+    mountPicker($('.picker-map', box), r, picked.lat ? [picked.lat, picked.lng] : null, async (lat, lng) => {
+      picked = { lat: +lat.toFixed(6), lng: +lng.toFixed(6) }; setLoc();
+      const a = await reverseAddr(lat, lng);
+      if (a) form.addr.value = a;
+      if (!form.name.value && a) form.name.value = a.split(' ').slice(-2).join(' ');
+    });
+  });
   $('[data-search]', form).addEventListener('click', doSearch);
   form.q.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doSearch(); } });
   if (!isNew) setTimeout(() => form.name.focus(), 50);
@@ -787,6 +840,7 @@ function placeModal(r, p) {
 
 // ───── 일정 ─────
 const sortPlan = (a, b) => (a.order || 0) - (b.order || 0) || (a.at || 0) - (b.at || 0);
+function locked(r) { if (!r.confirmed) return false; toast('일정이 확정됐어요. 우리 일정에서 다시 열면 바꿀 수 있어요.'); return true; }
 const dayItems = (r, d) => r.places.filter((p) => (d ? p.day === d : !p.day)).sort(sortPlan);
 function reorderByTime(r, d) {
   const items = dayItems(r, d);
@@ -803,30 +857,33 @@ function placeInDay(r, p, d, index) {
 }
 function planTab(r) {
   const days = dayCount(r), pending = dayItems(r, 0).sort((a, b) => b.hearts.length - a.hearts.length);
-  return `<div class="sec"><div><h2>우리 일정</h2><p>모아둔 곳을 날짜에 끌어다 놓고, 순서와 시간을 맞춰요.</p></div>
-    <div class="acts"><button class="btn" data-act="copy-plan">${I('copy', 16)}단체톡용 복사</button></div></div>
+  const lock = !!r.confirmed, planned = r.places.filter((p) => p.day), visited = planned.filter((p) => p.visited).length;
+  return `<div class="sec"><div><h2>우리 일정</h2><p>${lock ? '확정된 일정이에요. 다녀온 곳은 체크해 보세요.' : '모아둔 곳을 날짜에 끌어다 놓고, 순서와 시간을 맞춰요.'}</p></div>
+    <div class="acts"><button class="btn" data-act="copy-plan">${I('copy', 16)}단체톡용 복사</button>${lock ? '' : `<button class="btn pri" data-act="confirm-plan" ${planned.length ? '' : 'disabled style="opacity:.5"'}>${I('check', 16, 2.2)}일정 확정</button>`}</div></div>
+  ${lock ? `<div class="locked">${I('check', 18, 2.2)}<span><b>일정 확정</b> · ${esc(member(r, r.confirmed.by).name)}님이 ${timeAgo(r.confirmed.at)} 확정했어요</span><span class="faint">다녀온 곳 ${visited}/${planned.length}</span><span class="sp"></span><button class="btn sm" data-act="reopen-plan">다시 열기</button></div>` : ''}
   <div class="days">
   ${Array.from({ length: days }, (_, i) => {
     const d = i + 1, items = dayItems(r, d), col = COLORS[i % COLORS.length];
     return `<section class="day" data-drop="${d}">
       <div class="day-head"><span class="day-no" style="color:${col}">${d}일차</span><span class="day-date">${dayLabel(r, d)}</span><span class="sp"></span>
         ${items.length > 1 ? `<a class="btn ghost sm" href="${esc(routeUrl(r, items))}" target="_blank" rel="noopener" title="${PNAME[provider(r)]} 경로">${I('route', 16)}경로</a>` : ''}</div>
-      ${items.length ? `<ol class="stops">${items.map((p, j) => `<li class="stop" draggable="true" data-drag="${p.id}" style="--c:${col}">
+      ${items.length ? `<ol class="stops">${items.map((p, j) => `<li class="stop ${p.visited ? 'visited' : ''}" ${lock ? '' : `draggable="true" data-drag="${p.id}"`} style="--c:${col}">
         <span class="stop-no">${j + 1}</span>
         <div class="grow"><div class="stop-name"><span class="dot" style="--c:${cat(p.cat).c}"></span>${esc(p.name)}</div>
-          <div class="stop-sub"><input type="time" value="${p.time || ''}" data-change="time" data-id="${p.id}" aria-label="${esc(p.name)} 시간">${p.hearts.length ? `<span class="faint" style="font-size:12px">♥ ${p.hearts.length}</span>` : ''}</div></div>
-        <div class="stop-ctrl"><button data-act="move" data-id="${p.id}" data-dir="-1" aria-label="위로">${I('up', 16)}</button><button data-act="move" data-id="${p.id}" data-dir="1" aria-label="아래로">${I('down', 16)}</button><button data-act="set-day" data-id="${p.id}" data-d="0" aria-label="일정에서 빼기">${I('x', 16)}</button></div>
-      </li>`).join('')}</ol>` : `<div class="day-empty">여기로 장소를 끌어다 놓거나<br>아래에서 골라 넣어요</div>`}
-      ${pending.length ? `<div class="day-add"><select data-change="assign" data-d="${d}" aria-label="${d}일차에 장소 추가"><option value="">＋ 모아둔 곳에서 추가</option>${pending.map((p) => `<option value="${p.id}">${esc(p.name)}${p.hearts.length ? ` ♥${p.hearts.length}` : ''}</option>`).join('')}</select></div>` : ''}
+          <div class="stop-sub"><input type="time" value="${p.time || ''}" data-change="time" data-id="${p.id}" aria-label="${esc(p.name)} 시간" ${lock ? 'disabled' : ''}>${p.hearts.length ? `<span class="faint" style="font-size:12px">♥ ${p.hearts.length}</span>` : ''}</div></div>
+        ${lock ? `<button class="visit ${p.visited ? 'on' : ''}" data-act="visit" data-id="${p.id}" aria-pressed="${!!p.visited}" aria-label="${esc(p.name)} 다녀왔어요" title="다녀왔어요">${I('check', 15, 2.6)}</button>`
+          : `<div class="stop-ctrl"><button data-act="visit" data-id="${p.id}" aria-label="다녀왔어요 표시" title="다녀왔어요">${I('check', 16)}</button><button data-act="move" data-id="${p.id}" data-dir="-1" aria-label="위로">${I('up', 16)}</button><button data-act="move" data-id="${p.id}" data-dir="1" aria-label="아래로">${I('down', 16)}</button><button data-act="set-day" data-id="${p.id}" data-d="0" aria-label="일정에서 빼기">${I('x', 16)}</button></div>`}
+      </li>`).join('')}</ol>` : `<div class="day-empty">${lock ? '이 날은 비어 있어요' : '여기로 장소를 끌어다 놓거나<br>아래에서 골라 넣어요'}</div>`}
+      ${pending.length && !lock ? `<div class="day-add"><select data-change="assign" data-d="${d}" aria-label="${d}일차에 장소 추가"><option value="">＋ 모아둔 곳에서 추가</option>${pending.map((p) => `<option value="${p.id}">${esc(p.name)}${p.hearts.length ? ` ♥${p.hearts.length}` : ''}</option>`).join('')}</select></div>` : ''}
     </section>`;
   }).join('')}
   </div>
-  <section class="tray" data-drop="0">
+  ${lock && !pending.length ? '' : lock ? `<section class="tray"><div class="row"><h3>일정에 들지 않은 후보</h3><span class="faint">${pending.length}곳</span></div><div class="tray-items">${pending.map((p) => `<span class="tray-item" style="cursor:default;padding-right:12px"><span class="dot" style="--c:${cat(p.cat).c}"></span>${esc(p.name)}</span>`).join('')}</div></section>` : `<section class="tray" data-drop="0">
     <div class="row"><h3>아직 날짜 미정</h3><span class="faint">${pending.length}곳</span><span class="sp"></span><span class="faint" style="font-size:12px">하트 많은 순</span></div>
     ${pending.length ? `<div class="tray-items">${pending.map((p) => `<span class="tray-item" draggable="true" data-drag="${p.id}"><span class="dot" style="--c:${cat(p.cat).c}"></span>${esc(p.name)}${p.hearts.length ? ` <span class="faint">♥${p.hearts.length}</span>` : ''}
       <select data-change="assign-one" data-id="${p.id}" aria-label="${esc(p.name)} 날짜"><option value="">날짜</option>${Array.from({ length: days }, (_, i) => `<option value="${i + 1}">${i + 1}일차</option>`).join('')}</select></span>`).join('')}</div>`
       : `<p class="faint" style="margin:8px 0 0;font-size:14px">모든 장소가 일정에 들어갔어요. 일정에서 빼려면 여기로 끌어다 놓으세요.</p>`}
-  </section>`;
+  </section>`}`;
 }
 function planText(r) {
   let t = `✈️ ${r.name}\n📍 ${r.dest} · ${range(r)} (${nights(r)})\n`;
@@ -1170,8 +1227,16 @@ document.addEventListener('click', (ev) => {
     heart: () => { const p = P(el.dataset.id), me = meId(r); p.hearts = p.hearts.includes(me) ? p.hearts.filter((h) => h !== me) : [...p.hearts, me]; touch(r, p); render(); },
     cmt: () => { ui.openCmt[el.dataset.id] = !ui.openCmt[el.dataset.id]; render(); if (ui.openCmt[el.dataset.id]) $(`[data-form=cmt][data-id="${el.dataset.id}"] input`)?.focus({ preventScroll: true }); },
     'del-cmt': () => { const p = P(el.dataset.id); p.comments = p.comments.filter((c) => c.id !== el.dataset.c); touch(r, p); render(); },
-    'set-day': () => { const p = P(el.dataset.id), d = +el.dataset.d || 0; placeInDay(r, p, d); render(); if (d) toast(`${d}일차에 넣었어요`); },
+    'confirm-plan': async () => {
+      if (await confirmBox({ title: '이 일정으로 확정할까요?', msg: '확정하면 날짜·순서가 잠기고, 다녀온 곳을 체크할 수 있어요. 언제든 다시 열 수 있어요.', ok: '확정하기' })) {
+        r.confirmed = { at: now(), by: meId(r) }; sysMsg(r, `${member(r, meId(r)).name}님이 일정을 확정했어요`); touch(r); render(); toast('일정을 확정했어요');
+      }
+    },
+    'reopen-plan': () => { delete r.confirmed; sysMsg(r, `${member(r, meId(r)).name}님이 일정을 다시 열었어요`); touch(r); render(); toast('다시 고칠 수 있어요'); },
+    visit: () => { const p = P(el.dataset.id); p.visited = !p.visited; touch(r, p); render(); if (p.visited) toast(`'${p.name}' 다녀왔어요`); },
+    'set-day': () => { if (locked(r)) return; const p = P(el.dataset.id), d = +el.dataset.d || 0; placeInDay(r, p, d); render(); if (d) toast(`${d}일차에 넣었어요`); },
     move: () => {
+      if (locked(r)) return;
       const p = P(el.dataset.id), items = dayItems(r, p.day), i = items.indexOf(p), j = i + +el.dataset.dir;
       if (j < 0 || j >= items.length) return;
       [items[i], items[j]] = [items[j], items[i]];
@@ -1234,10 +1299,21 @@ document.addEventListener('change', (ev) => {
   if (el.closest('[data-form=room]') && el.name === 'tone') { $$('[data-form=room] .tone').forEach((l) => l.classList.toggle('on', l.querySelector('input').checked)); return; }
   const k = el.dataset.change; if (!k) return;
   const r = room();
+  if (/^assign|^time$/.test(k) && locked(r)) { render(); return; }
   if (k === 'assign' && el.value) { placeInDay(r, r.places.find((x) => x.id === el.value), +el.dataset.d); render(); }
   if (k === 'assign-one' && el.value) { placeInDay(r, r.places.find((x) => x.id === el.dataset.id), +el.value); render(); toast(`${el.value}일차에 넣었어요`); }
   if (k === 'time') { const p = r.places.find((x) => x.id === el.dataset.id); p.time = el.value; reorderByTime(r, p.day); touch(r, p); render(); }
   if (k === 'provider') { r.mapProvider = el.value; mapCtl?.destroy(); mapCtl = null; touch(r); render(); toast(`${PNAME[provider(r)]}을(를) 써요`); }
+});
+// 모아둔 곳 글자 검색 (다시 그리지 않고 바로 거르기)
+document.addEventListener('input', (ev) => {
+  if (!ev.target.matches('[data-q]')) return;
+  ui.q = ev.target.value; const q = ui.q.trim().toLowerCase();
+  let shown = 0;
+  $$('.plist .place').forEach((c) => { const ok = !q || c.dataset.s.includes(q); c.classList.toggle('hidden', !ok); shown += ok; });
+  let none = $('.plist .q-none');
+  if (!shown && q) { if (!none) { none = document.createElement('div'); none.className = 'q-none empty'; $('.plist')?.prepend(none); } none.innerHTML = `<h3>'${esc(ui.q)}'와(과) 맞는 곳이 없어요</h3><p>다른 말로 찾아보거나, 새 장소로 제안해 보세요.</p>`; }
+  else none?.remove();
 });
 // 카드 ↔ 지도 핀 강조
 document.addEventListener('mouseover', (ev) => { const c = ev.target.closest?.('.place[data-pid]'); if (c && c !== hover.el) { hover.el && mapCtl?.hl(hover.el.dataset.pid, false); hover.el = c; mapCtl?.hl(c.dataset.pid, true); } });
@@ -1252,6 +1328,7 @@ document.addEventListener('drop', (ev) => {
   const z = ev.target.closest?.('[data-drop]'); if (!z || !dragId) return;
   ev.preventDefault();
   const r = room(), p = r.places.find((x) => x.id === dragId), d = +z.dataset.drop;
+  if (locked(r)) return;
   const stops = $$('.stop', z).filter((s) => s.dataset.drag !== dragId);
   let idx = stops.findIndex((s) => { const b = s.getBoundingClientRect(); return ev.clientY < b.top + b.height / 2; });
   if (idx < 0) idx = stops.length;
