@@ -10,8 +10,8 @@
  * 비워두면 OpenStreetMap 지도·검색으로 대신 동작해요.
  */
 window.MOA_CONFIG = {
-  kakaoKey: '',
-  googleKey: '',
+  kakaoKey: '76e87e41d7c739f61c25897397109b68',
+  googleKey: 'AIzaSyAVnwljpUgteHct6y-FVgu5yS2znloEAvU',
   // 실시간 공유방 서버 (moa-travel-server 폴더의 Cloudflare Worker)
   syncUrl: /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://127.0.0.1:8787' : 'https://moatravel-rooms.moatravel.workers.dev',
 };

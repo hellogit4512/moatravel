@@ -5,15 +5,15 @@
 
 // ───────── 상수 ─────────
 const KEY = 'moa.v2';
-const COLORS = ['#2f5d50', '#b8583a', '#2f5470', '#a07a2c', '#6b4a63', '#4f7a5a', '#8a4f3d', '#3f6f8a', '#7a6a3a', '#5a5a8a'];
-const TONES = [['#2f5d50', '#f2efe6'], ['#b8583a', '#fbf1ea'], ['#2f5470', '#eef3f7'], ['#c9a66b', '#2a2217'], ['#6b4a63', '#f6eef3'], ['#2b2a27', '#efece5'], ['#4f7a5a', '#f2f5ee'], ['#8a4f3d', '#f7ede8']];
+const COLORS = ['#0fa37a', '#ff6a47', '#3b82f6', '#f2a100', '#8b5cf6', '#14b8a6', '#ec4899', '#64748b', '#84cc16', '#0ea5e9'];
+const TONES = [['#0fa37a', '#ffffff'], ['#ff6a47', '#ffffff'], ['#3b82f6', '#ffffff'], ['#ffc53d', '#3a2b00'], ['#8b5cf6', '#ffffff'], ['#14b8a6', '#ffffff'], ['#ec4899', '#ffffff'], ['#1f2a26', '#e9f1ed']];
 const CATS = [
-  { k: 'spot', n: '명소', c: '#4f7a5a' }, { k: 'food', n: '맛집', c: '#b8583a' }, { k: 'cafe', n: '카페', c: '#8a6a4a' },
-  { k: 'stay', n: '숙소', c: '#2f5470' }, { k: 'shop', n: '쇼핑', c: '#6b4a63' }, { k: 'etc', n: '기타', c: '#8a877e' },
+  { k: 'spot', n: '명소', c: '#0fa37a' }, { k: 'food', n: '맛집', c: '#ff6a47' }, { k: 'cafe', n: '카페', c: '#c2803d' },
+  { k: 'stay', n: '숙소', c: '#3b82f6' }, { k: 'shop', n: '쇼핑', c: '#8b5cf6' }, { k: 'etc', n: '기타', c: '#94a3b8' },
 ];
 const ECATS = [
-  { k: 'food', n: '식비', c: '#b8583a' }, { k: 'move', n: '교통', c: '#2f5470' }, { k: 'stay', n: '숙박', c: '#4f7a5a' },
-  { k: 'play', n: '관광', c: '#a07a2c' }, { k: 'shop', n: '쇼핑', c: '#6b4a63' }, { k: 'etc', n: '기타', c: '#8a877e' },
+  { k: 'food', n: '식비', c: '#ff6a47' }, { k: 'move', n: '교통', c: '#3b82f6' }, { k: 'stay', n: '숙박', c: '#0fa37a' },
+  { k: 'play', n: '관광', c: '#f2a100' }, { k: 'shop', n: '쇼핑', c: '#8b5cf6' }, { k: 'etc', n: '기타', c: '#94a3b8' },
 ];
 const MOODS = ['😆', '🥰', '😌', '🤤', '😴', '🥲'];
 const TABS = [
@@ -133,7 +133,7 @@ function applyTheme() {
   const r = document.documentElement;
   if (S.theme === 'auto') r.removeAttribute('data-theme'); else r.setAttribute('data-theme', S.theme);
   const dark = S.theme === 'dark' || (S.theme === 'auto' && matchMedia('(prefers-color-scheme:dark)').matches);
-  $('meta[name=theme-color]')?.setAttribute('content', dark ? '#131311' : '#f6f4ef');
+  $('meta[name=theme-color]')?.setAttribute('content', dark ? '#0e1412' : '#f6faf8');
 }
 
 // ───────── 방 / 멤버 ─────────
@@ -147,20 +147,27 @@ function touch(r, item) { const t = now(); if (item) item.upd = t; r.updatedAt =
 const SYNC = (window.MOA_CONFIG || {}).syncUrl || '';
 const sync = { timer: {}, busy: {}, online: true, deferred: false };
 const shared = (r) => !!(SYNC && S.sync?.[r?.id]);
-const newKey = () => { const b = crypto.getRandomValues(new Uint8Array(24)); return b64u(b); };
-async function api(method, id, key, body, v) {
-  const res = await fetch(`${SYNC}/rooms/${id}${v ? `?v=${v}` : ''}`, { method, headers: { 'X-Room-Key': key, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+const newKey = () => b64u(crypto.getRandomValues(new Uint8Array(24)));
+async function api(method, id, { body, v, path = '', auth } = {}) {
+  const s = auth || S.sync[id];
+  const headers = { 'X-Room-Key': s.key };
+  if (s.pass) headers['X-Room-Pass'] = s.pass;
+  if (s.admin) headers['X-Room-Admin'] = s.admin;
+  if (body) headers['Content-Type'] = 'application/json';
+  const res = await fetch(`${SYNC}/rooms/${id}${path}${v ? `?v=${v}` : ''}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
   if (res.status === 204) return null;
+  if (res.ok && path.startsWith('/photos/')) return res.blob();
   const js = await res.json().catch(() => ({}));
-  if (!res.ok) { const e = new Error(js.error || '서버 오류'); e.status = res.status; throw e; }
+  if (!res.ok) { const e = new Error(js.error || '서버에 연결하지 못했어요'); Object.assign(e, { status: res.status, needPass: js.needPass, wrong: js.wrong, locked: js.locked }); throw e; }
   return js;
 }
-const forSync = (r) => ({ ...r, journal: r.journal.map((j) => ({ ...j, photos: [] })) });
-function applyRemote(id, remote, v) {
+const isRef = (p) => typeof p === 'string' && p.startsWith('p:');
+const forSync = (r) => ({ ...r, journal: r.journal.map((j) => ({ ...j, photos: (j.photos || []).filter(isRef) })) });
+function applyRemote(id, res) {
   const local = S.rooms[id];
-  const merged = local ? mergeRoom(local, remote) : remote;
+  const merged = local ? mergeRoom(local, res.room) : res.room;
   const changed = !local || JSON.stringify(forSync(merged)) !== JSON.stringify(forSync(local));
-  S.rooms[id] = merged; S.sync[id].v = v; save();
+  S.rooms[id] = merged; Object.assign(S.sync[id], { v: res.version, hasPass: !!res.hasPass, needPass: false }); save();
   if (changed && route().id === id) safeRender();
 }
 function safeRender() {
@@ -168,49 +175,93 @@ function safeRender() {
   if ($('#modal-root').innerHTML || dragId || (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.value)) { sync.deferred = true; return; }
   sync.deferred = false; render();
 }
+function onSyncError(id, e) {
+  if (e.needPass) { S.sync[id].needPass = true; delete S.sync[id].pass; save(); if (route().id === id) safeRender(); return; }
+  setOnline(false);
+}
 function setOnline(ok) { if (sync.online !== ok) { sync.online = ok; const el = $('.sync-pill'); if (el) el.outerHTML = syncPill(room()); } }
 function syncPill(r) {
   if (!shared(r)) return '';
-  return `<span class="sync-pill ${sync.online ? '' : 'off'}" title="${sync.online ? '친구들이 바꾼 내용이 몇 초 안에 보여요' : '연결이 끊겼어요. 다시 연결되면 자동으로 합쳐요'}"><i></i>${sync.online ? '실시간 공유 중' : '연결 끊김 · 기기에 저장 중'}</span>`;
+  const s = S.sync[r.id];
+  return `<span class="sync-pill ${sync.online ? '' : 'off'}" title="${sync.online ? '친구들이 바꾼 내용이 몇 초 안에 보여요' : '연결이 끊겼어요. 다시 연결되면 자동으로 합쳐요'}"><i></i>${sync.online ? '함께 보는 중' : '연결 끊김'}${s.hasPass ? ` ${I('key', 12, 2)}` : ''}</span>`;
 }
 function queuePush(r) {
-  if (!shared(r)) return;
+  if (!shared(r) || S.sync[r.id].needPass) return;
   clearTimeout(sync.timer[r.id]);
   sync.timer[r.id] = setTimeout(() => pushNow(r.id), 350);
 }
 async function pushNow(id) {
-  const s = S.sync[id], r = S.rooms[id]; if (!s || !r) return;
+  const s = S.sync[id], r = S.rooms[id]; if (!s || !r || s.needPass) return;
   if (sync.busy[id]) { sync.timer[id] = setTimeout(() => pushNow(id), 300); return; }
   sync.busy[id] = true;
-  try { const res = await api('PUT', id, s.key, { room: forSync(r) }); applyRemote(id, res.room, res.version); setOnline(true); }
-  catch (e) { setOnline(false); if (e.status === 403 || e.status === 404) toast(e.message); else sync.timer[id] = setTimeout(() => pushNow(id), 5000); }
+  try { applyRemote(id, await api('PUT', id, { body: { room: forSync(r) } })); setOnline(true); }
+  catch (e) { onSyncError(id, e); if (!e.needPass && e.status !== 403 && e.status !== 404) sync.timer[id] = setTimeout(() => pushNow(id), 5000); else if (!e.needPass) toast(e.message); }
   finally { sync.busy[id] = false; }
 }
 async function pollNow() {
   const r = route().page === 'room' ? room() : null;
-  if (!shared(r) || document.hidden || sync.busy[r.id] || sync.timer[r.id + ':pending']) return;
-  const s = S.sync[r.id];
-  try { const res = await api('GET', r.id, s.key, null, s.v); if (res) applyRemote(r.id, res.room, res.version); setOnline(true); if (sync.deferred) safeRender(); }
-  catch (e) { setOnline(false); }
+  if (!shared(r) || document.hidden || sync.busy[r.id] || S.sync[r.id].needPass) return;
+  try { const res = await api('GET', r.id, { v: S.sync[r.id].v }); if (res) applyRemote(r.id, res); setOnline(true); if (sync.deferred) safeRender(); }
+  catch (e) { onSyncError(r.id, e); }
 }
 setInterval(pollNow, 5000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) pollNow(); });
 addEventListener('online', () => { const r = room(); if (shared(r)) pushNow(r.id); });
 document.addEventListener('focusout', () => setTimeout(() => { if (sync.deferred) safeRender(); }, 50));
 async function makeShared(r) {
-  const key = newKey();
-  const res = await api('POST', r.id, key, { room: forSync(r) });
-  S.sync = S.sync || {}; S.sync[r.id] = { key, v: res.version };
-  sysMsg(r, `${member(r, meId(r)).name}님이 실시간 공유방을 열었어요`); touch(r);
+  const auth = { key: newKey(), admin: newKey() };
+  const res = await api('POST', r.id, { body: { room: forSync(r) }, auth });
+  S.sync = S.sync || {}; S.sync[r.id] = { ...auth, v: res.version, hasPass: false };
+  sysMsg(r, `${member(r, meId(r)).name}님이 함께 보는 여행방을 열었어요`); touch(r);
 }
 const sharedUrl = (r) => `${location.href.split('#')[0]}#s=${r.id}.${S.sync[r.id].key}`;
-async function joinShared(id, key) {
-  const res = await api('GET', id, key);
-  S.sync = S.sync || {}; S.sync[id] = { key, v: 0 };
+async function joinShared(id, key, pass) {
+  const prev = S.sync?.[id];
+  const auth = { key, pass: pass || prev?.pass, admin: prev?.admin };
+  const res = await api('GET', id, { auth });
+  S.sync = S.sync || {}; S.sync[id] = { ...auth, v: res.version, hasPass: !!res.hasPass };
   const ex = S.rooms[id];
-  S.rooms[id] = ex ? mergeRoom(ex, res.room) : res.room; S.sync[id].v = res.version; save();
+  S.rooms[id] = ex ? mergeRoom(ex, res.room) : res.room; save();
   if (ex) queuePush(S.rooms[id]);
   return { room: S.rooms[id], existed: !!ex };
+}
+function passPrompt(id, key, wrong) {
+  openModal({
+    title: '입장 비밀번호',
+    body: `<p class="muted" style="margin:0">방장이 비밀번호를 걸어둔 여행방이에요. 방장에게 받은 비밀번호를 입력해 주세요.</p>
+      <label class="field"><span>비밀번호</span><input type="password" name="pw" required autocomplete="current-password" maxlength="40"></label>
+      ${wrong ? `<p class="err">${esc(wrong)}</p>` : ''}`,
+    ok: '들어가기',
+    onOk(f) {
+      const pw = f.pw.value;
+      joinShared(id, key, pw).then(({ room: jr }) => { toast(`'${jr.name}'에 들어왔어요`); go(`#/r/${jr.id}/places`); })
+        .catch((e) => setTimeout(() => (e.needPass ? passPrompt(id, key, e.message) : toast(e.message)), 50));
+    },
+  });
+}
+function passGate(r) {
+  return `<div class="card gate">${empty('key', '비밀번호가 필요해요', '방장이 비밀번호를 걸었거나 바꿨어요. 받은 비밀번호를 입력하면 이어서 볼 수 있어요.')}
+    <form class="row" data-form="gate" style="max-width:360px;margin:-8px auto 32px;padding:0 20px"><input type="password" name="t" required placeholder="비밀번호" class="grow" autocomplete="current-password" aria-label="비밀번호"><button class="btn pri">확인</button></form></div>`;
+}
+// 공유 사진: 서버에서 받아 화면에 붙이기
+const photoCache = new Map();
+async function uploadPhotos(r, list) {
+  if (!shared(r)) return list;
+  const out = [];
+  for (const d of list) {
+    try { const { pid } = await api('POST', r.id, { path: '/photos', body: { data: d } }); out.push('p:' + pid); }
+    catch (e) { out.push(d); toast('사진 하나를 올리지 못해 이 기기에만 저장했어요'); }
+  }
+  return out;
+}
+function hydratePhotos() {
+  const r = room(); if (!r) return;
+  $$('img[data-photo]').forEach(async (img) => {
+    const ref = img.dataset.photo;
+    if (!photoCache.has(ref)) photoCache.set(ref, api('GET', r.id, { path: `/photos/${ref.slice(2)}` }).then((b) => URL.createObjectURL(b)).catch(() => ''));
+    const url = await photoCache.get(ref);
+    if (url) { img.src = url; img.classList.add('ready'); } else img.closest('.ph')?.classList.add('broken');
+  });
 }
 function sysMsg(r, text) { r.messages.push({ id: uid(), sys: true, text, at: now(), upd: now() }); }
 function removeUndo(r, key, id, label) {
@@ -555,8 +606,11 @@ async function checkJoin() {
       toast(existed ? '공유방과 다시 연결했어요' : `'${jr.name}' 공유방에 들어왔어요`);
       history.replaceState(null, '', location.pathname + `#/r/${jr.id}/places`);
     } catch (e) {
-      toast(e.status === 403 ? '초대 링크가 올바르지 않아요' : e.status === 404 ? '여행방을 찾을 수 없어요' : '서버에 연결하지 못했어요. 잠시 후 다시 열어주세요.');
       history.replaceState(null, '', location.pathname + '#/');
+      render();
+      if (e.needPass) return passPrompt(sm[1], sm[2], e.locked ? e.message : '');
+      toast(e.status === 403 ? '초대 링크가 올바르지 않아요' : e.status === 404 ? '여행방을 찾을 수 없어요' : '서버에 연결하지 못했어요. 잠시 후 다시 열어주세요.');
+      return;
     }
     return render();
   }
@@ -627,6 +681,7 @@ function render() {
     if (mapCtl.kind) $('.map-src')?.replaceChildren(document.createTextNode(PNAME[mapCtl.kind]));
   }
   if (r && rt.tab === 'chat') { const el = $('.msgs'); if (el) el.scrollTop = el.scrollHeight; }
+  if (r && rt.tab === 'journal') hydratePhotos();
   scrollTo(0, y);
   if (r && !meId(r)) setTimeout(() => pickMe(r), 60);
 }
@@ -684,8 +739,10 @@ function home() {
       <p class="lead">가고 싶은 곳을 제안하고 하트로 고르면, 일정과 정산·준비물까지 한 링크 안에서 정리돼요. 설치도 가입도 필요 없어요.</p>
       <div class="row wrap"><button class="btn pri" data-act="new-room" style="height:46px;padding:0 20px">${I('plus')}새 여행 만들기</button><button class="btn" data-act="open" data-id="demo" style="height:46px;padding:0 18px">예시 여행 둘러보기</button></div>
     </div>
-    <div class="hero-art">${heroSvg()}
-      ${next ? `<button class="next" data-act="open" data-id="${next.id}"><div class="dday-big">${dday(next)}</div><div class="grow"><div style="font-weight:700">${esc(next.name)}</div><div class="faint" style="font-size:13px">${esc(next.dest)} · ${range(next)} · ${nights(next)}</div></div>${I('back', 18)}</button>` : ''}
+    <div class="preview" aria-hidden="${next ? 'false' : 'true'}">
+      ${next ? `<button class="badge-next" data-act="open" data-id="${next.id}"><div class="dday-big">${dday(next)}</div><div class="grow"><div style="font-weight:700">${esc(next.name)}</div><div class="faint" style="font-size:13px">${esc(next.dest)} · ${range(next)} · ${nights(next)}</div></div><span style="transform:rotate(180deg);color:var(--faint)">${I('back', 18)}</span></button>` : ''}
+      ${previewCard('명소', CATS[0].c, '유진', '#ff6a47', '함덕해수욕장', '첫날은 바다부터! 해 질 때 같이 산책하자.', 3, '1일차 17:30')}
+      ${previewCard('맛집', CATS[1].c, '민수', '#3b82f6', '동문시장', '먹고 싶은 거 하나씩 골라서 나눠 먹기', 2, '1일차 12:00')}
     </div>
   </section>
 
@@ -704,6 +761,11 @@ function home() {
   </div>
   <footer class="foot"><span>모아여행 — 조금 덜 바쁘게, 조금 더 우리답게.</span><span>데이터는 이 기기에만 저장돼요</span></footer>`;
 }
+function previewCard(cn, cc, who, wc, name, memo, hearts, day) {
+  return `<div class="place" style="pointer-events:none"><div class="place-meta"><span class="dot" style="--c:${cc}"></span><span>${cn}</span><span>·</span><span class="av" style="background:${wc};width:18px;height:18px;font-size:8px">${who[0]}</span><span>${who}</span><span class="sp"></span><span class="tag accent">${day}</span></div>
+    <h3 class="place-name">${name}</h3><p class="place-memo">${memo}</p>
+    <div class="place-foot" style="margin-top:12px"><span class="heart on">${I('heart', 18, 1.8)}${hearts}</span></div></div>`;
+}
 function tripCard(x) {
   return `<button class="trip" data-act="open" data-id="${x.id}">
     <div class="cover" style="${toneStyle(x)}"><span class="badge">${x.demo ? '예시' : dday(x)}</span><div class="dest">${esc(x.dest)}</div></div>
@@ -712,23 +774,6 @@ function tripCard(x) {
       <div class="meta">${range(x)} · ${nights(x)}</div>
       <div class="row"><span class="avs">${x.members.slice(0, 5).map((m) => av(m, 24)).join('')}</span><span class="sp"></span><span class="faint" style="font-size:12px">장소 ${x.places.length}곳 · ${timeAgo(x.updatedAt)}</span></div>
     </div></button>`;
-}
-function heroSvg() {
-  return `<svg viewBox="0 0 500 400" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-    <defs><pattern id="g" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0v24" fill="none" stroke="var(--line)" stroke-width="1"/></pattern></defs>
-    <rect width="500" height="400" fill="url(#g)"/>
-    <path d="M70 300 C 130 210, 180 330, 250 230 S 360 90, 430 120" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-dasharray="3 9" stroke-linecap="round"/>
-    <g font-family="Pretendard Variable, sans-serif" font-weight="800" font-size="13" fill="#fff" text-anchor="middle">
-      <g transform="translate(70 300)"><circle r="16" fill="#2f5d50"/><text y="5">1</text></g>
-      <g transform="translate(250 230)"><circle r="16" fill="#b8583a"/><text y="5">2</text></g>
-      <g transform="translate(430 120)"><circle r="16" fill="#2f5470"/><text y="5">3</text></g>
-    </g>
-    <g font-family="Pretendard Variable, sans-serif" font-size="13" font-weight="600" fill="var(--text)">
-      <rect x="92" y="268" rx="8" width="104" height="30" fill="var(--surface)" stroke="var(--line)"/><text x="104" y="288">함덕해수욕장</text>
-      <rect x="272" y="198" rx="8" width="80" height="30" fill="var(--surface)" stroke="var(--line)"/><text x="284" y="218">동문시장</text>
-      <rect x="320" y="70" rx="8" width="96" height="30" fill="var(--surface)" stroke="var(--line)"/><text x="332" y="90">♥ 3 비자림</text>
-    </g>
-  </svg>`;
 }
 
 // ───────── 여행방 ─────────
@@ -748,7 +793,7 @@ function roomPage(r, tab) {
     </div>
   </section>
   ${r.demo ? `<div class="notice"><span><b>예시 여행방</b>이에요. 마음껏 눌러보세요 — 변경은 이 기기에만 저장돼요.</span><span class="sp"></span><button class="btn sm" data-act="fork-demo">이 내용으로 내 여행 만들기</button><button class="btn sm ghost" data-act="reset-demo">처음으로</button></div>` : ''}
-  ${({ chat: chatTab, places: placesTab, plan: planTab, money: moneyTab, pack: packTab, journal: journalTab, room: settingsTab })[tab](r)}`;
+  ${shared(r) && S.sync[r.id].needPass ? passGate(r) : ({ chat: chatTab, places: placesTab, plan: planTab, money: moneyTab, pack: packTab, journal: journalTab, room: settingsTab })[tab](r)}`;
 }
 
 // ───── 대화 ─────
@@ -1083,13 +1128,13 @@ function packTab(r) {
 // ───── 기록 ─────
 function journalTab(r) {
   const days = [...new Set(r.journal.map((j) => j.day))].sort((a, b) => a - b);
-  return `<div class="sec"><div><h2>여행 기록</h2><p>그날의 기분과 사진을 남겨요. 사진은 이 기기에만 저장돼요.</p></div>
+  return `<div class="sec"><div><h2>여행 기록</h2><p>그날의 기분과 사진을 남겨요. ${shared(r) ? '사진도 일행 모두가 함께 봐요.' : '사진은 이 기기에만 저장돼요.'}</p></div>
     <div class="acts"><button class="btn pri" data-act="add-entry">${I('plus')}기록 남기기</button></div></div>
   ${days.length ? days.map((d) => `<section class="jday"><div class="d"><div class="n">${d}일차</div><div class="faint" style="font-size:13px">${dayLabel(r, d)}</div></div><div>
     ${r.journal.filter((j) => j.day === d).sort((a, b) => (a.upd || 0) - (b.upd || 0)).map((j) => { const w = member(r, j.by); return `<article class="card entry">
       <div class="row"><span class="mood">${j.mood}</span>${av(w, 22)}<b style="font-size:14px">${esc(w.name)}</b><span class="sp"></span>${j.by === meId(r) ? `<button class="btn ghost icon sm" data-act="del-entry" data-id="${j.id}" aria-label="삭제">${I('trash', 15)}</button>` : ''}</div>
       <p>${esc(j.text)}</p>
-      ${j.photos?.filter(Boolean).length ? `<div class="photos">${j.photos.filter(Boolean).map((src) => `<img src="${src}" alt="여행 사진" data-act="photo" loading="lazy">`).join('')}</div>` : ''}
+      ${j.photos?.filter(Boolean).length ? `<div class="photos">${j.photos.filter(Boolean).map((src) => isRef(src) ? `<span class="ph"><img data-photo="${esc(src)}" alt="여행 사진" data-act="photo"></span>` : `<span class="ph"><img src="${src}" alt="여행 사진" data-act="photo" class="ready" loading="lazy"></span>`).join('')}</div>` : ''}
     </article>`; }).join('')}</div></section>`).join('')
     : `<div class="card">${empty('camera', '여행이 시작되면 하루하루를 남겨보세요', '오늘의 기분, 좋았던 순간, 사진 몇 장이면 충분해요.', `<button class="btn pri" data-act="add-entry">${I('plus')}첫 기록 남기기</button>`)}</div>`}`;
 }
@@ -1106,8 +1151,9 @@ function entryModal(r) {
     onOk(f) {
       const fd = new FormData(f);
       const files = fd.getAll('photos').filter((x) => x.size).slice(0, 4);
-      Promise.all(files.map(shrink)).then((photos) => {
-        const j = { id: uid(), day: +fd.get('day'), mood: fd.get('mood'), text: fd.get('text').trim(), photos: photos.filter(Boolean), by: meId(r) };
+      if (files.length) toast(shared(r) ? '사진을 올리는 중…' : '사진을 줄이는 중…');
+      Promise.all(files.map(shrink)).then((list) => uploadPhotos(r, list.filter(Boolean))).then((photos) => {
+        const j = { id: uid(), day: +fd.get('day'), mood: fd.get('mood'), text: fd.get('text').trim(), photos, by: meId(r) };
         r.journal.push(j); touch(r, j); render(); toast('기록했어요');
       });
     },
@@ -1153,6 +1199,9 @@ function settingsTab(r) {
     <div class="item"><div class="grow"><b>연결 상태</b><div class="faint" style="font-size:13px">카카오 ${k.kakao ? (failed.kakao ? '키 오류' : '연결됨') : '키 없음'} · 구글 ${k.google ? (failed.google ? '키 오류' : '연결됨') : '키 없음'}${(!k[pv] || failed[pv]) ? ' — 지금은 OpenStreetMap으로 보여드려요' : ''}</div></div><button class="btn sm" data-act="keys">${I('key', 15)}키 설정</button></div>
   </div>
 
+  ${shared(r) ? `<div class="group-title">입장 비밀번호</div>
+  <div class="group"><div class="item"><div class="grow"><b>${S.sync[r.id].hasPass ? '비밀번호가 걸려 있어요' : '비밀번호 없음'}</b><div class="faint" style="font-size:13px">${S.sync[r.id].hasPass ? '초대 링크를 받은 사람도 비밀번호를 알아야 들어올 수 있어요.' : '걸어두면 링크를 받은 사람도 비밀번호를 입력해야 들어와요.'}</div></div>
+    ${S.sync[r.id].admin ? `<button class="btn sm ${S.sync[r.id].hasPass ? '' : 'pri'}" data-act="set-pass">${I('key', 15)}${S.sync[r.id].hasPass ? '바꾸기' : '설정'}</button>` : '<span class="tag">방장만 바꿀 수 있어요</span>'}</div></div>` : ''}
   <div class="group-title">공유 · 백업</div>
   <div class="group">
     <div class="item"><div class="grow"><b>공유 링크</b><div class="faint" style="font-size:13px">링크에 여행방 전체가 담겨요. 친구가 열면 내용이 자동으로 합쳐져요.</div></div><button class="btn pri sm" data-act="share">${I('link', 15)}만들기</button></div>
@@ -1225,7 +1274,7 @@ async function shareModal(r, fresh) {
     const f0 = openModal({
       title: fresh ? '여행방이 만들어졌어요' : '일행 초대',
       body: `<p class="muted" style="margin:0;font-size:14px"><b>실시간 공유방</b>으로 열면 친구들이 링크 하나로 들어와서 함께 고치고, 바뀐 내용이 몇 초 안에 모두에게 보여요.</p>
-        <ul class="muted" style="margin:0;padding-left:18px;font-size:13.5px;line-height:1.8"><li>링크를 가진 사람만 들어올 수 있어요</li><li>사진은 올라가지 않고 각자 기기에만 남아요</li><li>지금까지 적은 내용이 그대로 올라가요</li></ul>
+        <ul class="muted" style="margin:0;padding-left:18px;font-size:13.5px;line-height:1.8"><li>링크를 가진 사람만 들어올 수 있어요</li><li>방장은 입장 비밀번호를 걸 수 있어요 (여행방 설정)</li><li>지금부터 올리는 여행 사진도 함께 봐요</li></ul>
         <button type="button" class="btn pri block" data-live style="height:46px">${I('share', 16)}실시간 공유방 열기</button>
         <button type="button" class="btn ghost" data-legacy>서버 없이 링크로만 주고받기</button>`,
     });
@@ -1329,6 +1378,22 @@ document.addEventListener('click', (ev) => {
     theme: cycleTheme,
     share: () => shareModal(r),
     keys: keysModal,
+    'set-pass': () => {
+      const s = S.sync[r.id];
+      openModal({
+        title: s.hasPass ? '입장 비밀번호 바꾸기' : '입장 비밀번호 설정',
+        body: `<p class="muted" style="margin:0;font-size:14px">일행에게는 초대 링크와 비밀번호를 <b>따로</b> 알려주세요. 이미 들어와 있는 사람도 바뀐 비밀번호를 한 번 입력해야 해요.</p>
+          <label class="field"><span>새 비밀번호 <small>· 4자 이상</small></span><input type="password" name="pw" minlength="4" maxlength="40" autocomplete="new-password" ${s.hasPass ? '' : 'required'}></label>
+          ${s.hasPass ? '<p class="faint" style="margin:-6px 0 0;font-size:12.5px">비워두고 저장하면 비밀번호를 없애요.</p>' : ''}`,
+        ok: '저장',
+        onOk(f) {
+          const pw = f.pw.value;
+          api('POST', r.id, { path: '/password', body: { password: pw } })
+            .then((res) => { s.hasPass = res.hasPass; s.pass = pw || undefined; save(); sysMsg(r, `${member(r, meId(r)).name}님이 입장 비밀번호를 ${pw ? '설정' : '해제'}했어요`); touch(r); render(); toast(pw ? '비밀번호를 걸었어요' : '비밀번호를 없앴어요'); })
+            .catch((e) => toast(e.message));
+        },
+      });
+    },
     'pick-me': () => pickMe(r),
     'fork-demo': () => { const c = JSON.parse(JSON.stringify(r)); c.id = uid(); delete c.demo; c.name = '우리의 제주 여행'; c.updatedAt = now(); S.rooms[c.id] = c; S.me[c.id] = S.me.demo; save(); go(`#/r/${c.id}/room`); toast('내 여행으로 복사했어요. 이름과 날짜를 바꿔보세요'); },
     'reset-demo': () => { S.rooms.demo = demoRoom(); S.me.demo = S.rooms.demo.members[0].id; save(); mapCtl?.destroy(); mapCtl = null; render(); toast('처음 상태로 돌렸어요'); },
@@ -1397,6 +1462,11 @@ document.addEventListener('submit', (ev) => {
   const f = ev.target.closest('[data-form]'); if (!f) return;
   ev.preventDefault();
   const r = room(), t = f.t?.value.trim(), kind = f.dataset.form;
+  if (kind === 'gate' && t) {
+    const s = S.sync[r.id];
+    joinShared(r.id, s.key, t).then(() => { render(); toast('다시 연결했어요'); }).catch((e) => toast(e.message));
+    return;
+  }
   if (kind === 'chat' && t) { r.messages.push({ id: uid(), by: meId(r), text: t, at: now(), upd: now() }); touch(r); render(); $('.composer input')?.focus(); }
   if (kind === 'cmt' && t) { const p = r.places.find((x) => x.id === f.dataset.id); p.comments.push({ id: uid(), by: meId(r), text: t, at: now() }); touch(r, p); render(); $(`[data-form=cmt][data-id="${p.id}"] input`)?.focus({ preventScroll: true }); }
   if (kind === 'pack' && t) { const c = { id: uid(), text: t, who: f.who.value || null, done: false }; r.checklist.push(c); touch(r, c); render(); $('[data-form=pack] input')?.focus(); }
