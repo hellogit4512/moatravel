@@ -18,7 +18,7 @@ const ECATS = [
 const MOODS = ['😆', '🥰', '😌', '🤤', '😴', '🥲'];
 const TABS = [
   { k: 'places', n: '모아둔 곳', i: 'pin' }, { k: 'plan', n: '우리 일정', i: 'cal' }, { k: 'chat', n: '대화', i: 'chat' },
-  { k: 'money', n: '정산', i: 'wallet' }, { k: 'pack', n: '준비물', i: 'checks' }, { k: 'journal', n: '여행 기록', i: 'camera' },
+  { k: 'money', n: '정산', i: 'wallet' }, { k: 'docs', n: '티켓·서류', i: 'ticket' }, { k: 'pack', n: '준비물', i: 'checks' }, { k: 'journal', n: '여행 기록', i: 'camera' },
   { k: 'room', n: '여행방 설정', i: 'sliders' },
 ];
 const BNAV = ['places', 'plan', 'chat', 'money'];
@@ -63,6 +63,8 @@ const ICONS = {
   user: '<circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>',
   key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l8.5-8.5M16 7l2.5 2.5M14 9l2 2"/>',
   send: '<path d="M4 12l16-8-6 16-2.5-6.5z"/>',
+  ticket: '<path d="M4 7.5A1.5 1.5 0 0 1 5.5 6h13A1.5 1.5 0 0 1 20 7.5V10a2 2 0 0 0 0 4v2.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 16.5V14a2 2 0 0 0 0-4z"/><path d="M14.5 6.5v11" stroke-dasharray="1.6 2.2"/>',
+  clip: '<path d="M19.5 11.5l-7.6 7.6a4.8 4.8 0 0 1-6.8-6.8l8-8a3.2 3.2 0 0 1 4.6 4.6l-8 8a1.6 1.6 0 0 1-2.3-2.3l7.3-7.3"/>',
 };
 const I = (n, s = 18, sw = 1.7) => `<svg class="i" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ''}</svg>`;
 
@@ -162,7 +164,8 @@ async function api(method, id, { body, v, path = '', auth } = {}) {
   return js;
 }
 const isRef = (p) => typeof p === 'string' && p.startsWith('p:');
-const forSync = (r) => ({ ...r, journal: r.journal.map((j) => ({ ...j, photos: (j.photos || []).filter(isRef) })) });
+const refsOnly = (x) => ({ ...x, photos: (x.photos || []).filter(isRef) });
+const forSync = (r) => ({ ...r, journal: r.journal.map(refsOnly), docs: (r.docs || []).map(refsOnly), expenses: r.expenses.map(refsOnly) });
 function applyRemote(id, res) {
   const local = S.rooms[id];
   const merged = local ? mergeRoom(local, res.room) : res.room;
@@ -244,6 +247,7 @@ function passGate(r) {
     <form class="row" data-form="gate" style="max-width:360px;margin:-8px auto 32px;padding:0 20px"><input type="password" name="t" required placeholder="비밀번호" class="grow" autocomplete="current-password" aria-label="비밀번호"><button class="btn pri">확인</button></form></div>`;
 }
 // 공유 사진: 서버에서 받아 화면에 붙이기
+const ph = (src, alt = '사진') => (isRef(src) ? `<span class="ph"><img data-photo="${esc(src)}" alt="${alt}" data-act="photo"></span>` : `<span class="ph"><img src="${src}" alt="${alt}" data-act="photo" class="ready" loading="lazy"></span>`);
 const photoCache = new Map();
 async function uploadPhotos(r, list) {
   if (!shared(r)) return list;
@@ -272,7 +276,7 @@ function removeUndo(r, key, id, label) {
 }
 function newRoom({ name, dest, start, end, members, tone: tn }) {
   const ms = members.map((n, i) => ({ id: uid(), name: n, color: COLORS[i % COLORS.length], upd: now() }));
-  return { id: uid(), name, dest, tone: tn, start, end, members: ms, places: [], messages: [], expenses: [], checklist: [], journal: [], del: {}, createdAt: now(), updatedAt: now(), mapProvider: 'auto' };
+  return { id: uid(), name, dest, tone: tn, start, end, members: ms, places: [], messages: [], expenses: [], checklist: [], journal: [], docs: [], del: {}, createdAt: now(), updatedAt: now(), mapProvider: 'auto' };
 }
 function demoRoom() {
   const start = isoDate(addDays(isoDate(new Date()), 7));
@@ -587,7 +591,7 @@ function mergeRoom(a, b) {
   const del = { ...(a.del || {}), ...(b.del || {}) };
   const out = { ...((b.updatedAt || 0) > (a.updatedAt || 0) ? b : a), del };
   const photos = {}; (a.journal || []).forEach((j) => (photos[j.id] = j.photos));
-  for (const k of ['members', 'places', 'messages', 'expenses', 'checklist', 'journal']) {
+  for (const k of ['members', 'places', 'messages', 'expenses', 'checklist', 'journal', 'docs']) {
     const m = new Map();
     [...(a[k] || []), ...(b[k] || [])].forEach((x) => { const c = m.get(x.id); if (!c || (x.upd || x.at || 0) >= (c.upd || c.at || 0)) m.set(x.id, x); });
     out[k] = [...m.values()].filter((x) => !del[x.id]);
@@ -653,6 +657,7 @@ function closeModal() {
   const f = $('#modal-root form'); const cb = f?._onClose;
   $('#modal-root').innerHTML = '';
   cb?.();
+  if (sync.deferred) setTimeout(safeRender, 0);
 }
 function confirmBox({ title, msg, ok = '확인', danger }) {
   return new Promise((res) => {
@@ -669,6 +674,7 @@ function render() {
     if (rt.id === 'demo') { S.rooms.demo = demoRoom(); S.me.demo = S.rooms.demo.members[0].id; save(); } else return go('#/');
   }
   const r = rt.page === 'room' ? S.rooms[rt.id] : null;
+  if (r) r.docs ||= [];
   document.title = r ? `${r.name} · 모아여행` : '모아여행 · 함께 모아 만드는 우리 여행';
   const y = scrollY;
   $('#app').innerHTML = `<div class="shell ${r ? 'is-room' : 'is-home'}">${side(rt, r)}<div class="content">${topbar(r)}<main class="main" id="main">${r ? roomPage(r, rt.tab) : home()}</main></div>${r ? bnav(rt.tab) : ''}</div>`;
@@ -681,7 +687,7 @@ function render() {
     if (mapCtl.kind) $('.map-src')?.replaceChildren(document.createTextNode(PNAME[mapCtl.kind]));
   }
   if (r && rt.tab === 'chat') { const el = $('.msgs'); if (el) el.scrollTop = el.scrollHeight; }
-  if (r && rt.tab === 'journal') hydratePhotos();
+  if (r) hydratePhotos();
   scrollTo(0, y);
   if (r && !meId(r)) setTimeout(() => pickMe(r), 60);
 }
@@ -719,7 +725,7 @@ function bnav(tab) {
     <button class="${inMore ? 'on' : ''}" data-act="more">${I('grid', 22)}<span>더보기</span></button></nav>`;
 }
 function counts(r, k) {
-  const n = { places: r.places.length, money: r.expenses.length, pack: r.checklist.filter((c) => !c.done).length, journal: r.journal.length, chat: r.messages.filter((m) => !m.sys).length }[k];
+  const n = { places: r.places.length, money: r.expenses.length, pack: r.checklist.filter((c) => !c.done).length, journal: r.journal.length, docs: (r.docs || []).length, chat: r.messages.filter((m) => !m.sys).length }[k];
   return n ? `<span class="cnt">${n}</span>` : '';
 }
 function empty(icon, title, desc, btn = '') {
@@ -793,7 +799,7 @@ function roomPage(r, tab) {
     </div>
   </section>
   ${r.demo ? `<div class="notice"><span><b>예시 여행방</b>이에요. 마음껏 눌러보세요 — 변경은 이 기기에만 저장돼요.</span><span class="sp"></span><button class="btn sm" data-act="fork-demo">이 내용으로 내 여행 만들기</button><button class="btn sm ghost" data-act="reset-demo">처음으로</button></div>` : ''}
-  ${shared(r) && S.sync[r.id].needPass ? passGate(r) : ({ chat: chatTab, places: placesTab, plan: planTab, money: moneyTab, pack: packTab, journal: journalTab, room: settingsTab })[tab](r)}`;
+  ${shared(r) && S.sync[r.id].needPass ? passGate(r) : ({ chat: chatTab, places: placesTab, plan: planTab, money: moneyTab, pack: packTab, journal: journalTab, docs: docsTab, room: settingsTab })[tab](r)}`;
 }
 
 // ───── 대화 ─────
@@ -1071,7 +1077,7 @@ function moneyTab(r) {
     </div>
     <div>
       <div class="sec"><div><h2>지출 내역</h2><p>${r.expenses.length}건 · 눌러서 수정</p></div></div>
-      <div class="card rows">${r.expenses.slice().sort((a, b) => b.at - a.at).map((e) => `<button class="r" data-act="edit-exp" data-id="${e.id}"><span class="dot" style="--c:${ecat(e.cat).c}"></span><div class="grow"><b>${esc(e.title)}</b><div class="faint" style="font-size:12px">${ecat(e.cat).n} · ${esc(member(r, e.payer).name)} 결제 · ${e.split.length}명</div></div><div style="text-align:right"><div class="amt">${won(e.amount)}</div><div class="faint num" style="font-size:12px">1인 ${won(e.amount / Math.max(1, e.split.length))}</div></div></button>`).join('')}</div>
+      <div class="card rows">${r.expenses.slice().sort((a, b) => b.at - a.at).map((e) => `<button class="r" data-act="edit-exp" data-id="${e.id}"><span class="dot" style="--c:${ecat(e.cat).c}"></span><div class="grow"><b>${esc(e.title)}</b>${e.photos?.length ? ` <span class="faint" title="영수증 ${e.photos.length}장" style="display:inline-flex;vertical-align:-3px">${I('clip', 15)}</span>` : ''}<div class="faint" style="font-size:12px">${ecat(e.cat).n} · ${esc(member(r, e.payer).name)} 결제 · ${e.split.length}명</div></div><div style="text-align:right"><div class="amt">${won(e.amount)}</div><div class="faint num" style="font-size:12px">1인 ${won(e.amount / Math.max(1, e.split.length))}</div></div></button>`).join('')}</div>
     </div>
   </div>`;
 }
@@ -1086,6 +1092,9 @@ function expModal(r, e) {
       <div class="field"><span>분류</span><div class="chips" style="flex-wrap:wrap">${ECATS.map((c) => `<label class="chip ${e.cat === c.k ? 'on' : ''}"><input type="radio" name="cat" value="${c.k}" ${e.cat === c.k ? 'checked' : ''}><span class="dot" style="--c:${c.c}"></span>${c.n}</label>`).join('')}</div></div>
       <div class="field"><span>누가 냈나요</span><div class="chips" style="flex-wrap:wrap">${r.members.map((m) => `<label class="chip ${e.payer === m.id ? 'on' : ''}"><input type="radio" name="payer" value="${m.id}" ${e.payer === m.id ? 'checked' : ''}>${esc(m.name)}</label>`).join('')}</div></div>
       <div class="field"><span>누구와 나누나요</span><div class="chips" style="flex-wrap:wrap">${r.members.map((m) => `<label class="chip ${e.split.includes(m.id) ? 'on' : ''}"><input type="checkbox" name="split" value="${m.id}" ${e.split.includes(m.id) ? 'checked' : ''}>${esc(m.name)}</label>`).join('')}</div></div>
+      <div class="field"><span>영수증 사진 <small>· 선택</small></span>
+        ${e.photos?.length ? `<div class="photos" style="margin:0">${e.photos.map((x) => ph(x, '영수증')).join('')}</div>` : ''}
+        <input type="file" name="files" accept="image/*" multiple style="height:auto;padding:10px"></div>
       ${isNew ? '' : `<button type="button" class="btn sm ghost danger" data-del style="align-self:flex-start">${I('trash', 15)}이 지출 삭제</button>`}`,
     ok: isNew ? '기록하기' : '저장',
     onOk(f) {
@@ -1094,10 +1103,16 @@ function expModal(r, e) {
       if (!amount) { toast('금액을 적어주세요'); return false; }
       if (!split.length) { toast('나눌 사람을 한 명 이상 골라주세요'); return false; }
       const v = { title: fd.get('title').trim(), amount, cat: fd.get('cat'), payer: fd.get('payer'), split };
-      if (isNew) { const ne = { id: uid(), ...v, at: now() }; r.expenses.push(ne); touch(r, ne); } else { Object.assign(e, v); touch(r, e); }
-      toast('기록했어요'); render();
+      const files = fd.getAll('files').filter((x) => x.size).slice(0, 4);
+      const done = (photos) => {
+        v.photos = [...(e.photos || []), ...photos];
+        if (isNew) { const ne = { id: uid(), ...v, at: now() }; r.expenses.push(ne); touch(r, ne); } else { Object.assign(e, v); touch(r, e); }
+        toast('기록했어요'); render();
+      };
+      if (files.length) { toast('영수증을 올리는 중…'); Promise.all(files.map((x) => shrink(x, 1600, 0.82))).then((l) => uploadPhotos(r, l.filter(Boolean))).then(done); } else done([]);
     },
   });
+  hydratePhotos();
   const amt = form.amount, per = $('.per', form);
   const upd = () => {
     const n = +amt.value.replace(/[^\d]/g, ''); const k = $$('input[name=split]:checked', form).length;
@@ -1125,6 +1140,58 @@ function packTab(r) {
     : `<div class="card" style="margin-top:16px">${empty('checks', '아직 비어 있어요', '자주 챙기는 것들을 한 번에 넣어볼까요?', `<button class="btn" data-act="pack-template">기본 준비물 넣기</button>`)}</div>`}`;
 }
 
+// ───── 티켓·서류 보관함 ─────
+const DKINDS = [
+  { k: 'air', n: '항공권', c: '#3b82f6' }, { k: 'stay', n: '숙소 예약', c: '#0fa37a' }, { k: 'ticket', n: '입장권·티켓', c: '#f2a100' },
+  { k: 'move', n: '교통', c: '#14b8a6' }, { k: 'receipt', n: '영수증', c: '#ff6a47' }, { k: 'etc', n: '기타', c: '#94a3b8' },
+];
+const dkind = (k) => DKINDS.find((x) => x.k === k) || DKINDS[5];
+function docsTab(r) {
+  const list = (r.docs || []).slice().sort((a, b) => (a.day || 99) - (b.day || 99) || (b.at || 0) - (a.at || 0));
+  const receipts = r.expenses.filter((e) => e.photos?.length);
+  return `<div class="sec"><div><h2>티켓 · 서류</h2><p>항공권, 숙소 예약, 입장권 캡처를 한곳에. ${shared(r) ? '일행 모두가 함께 봐요.' : '함께 보는 여행방으로 열면 일행도 볼 수 있어요.'}</p></div>
+    <div class="acts"><button class="btn pri" data-act="add-doc">${I('plus')}올리기</button></div></div>
+  ${list.length ? `<div class="docs">${list.map((d) => { const k = dkind(d.kind), w = member(r, d.by); return `<button class="doc" data-act="open-doc" data-id="${d.id}">
+      <div class="doc-thumb">${d.photos?.[0] ? ph(d.photos[0], esc(d.title)) : `<span class="ill">${I('ticket', 28, 1.4)}</span>`}${d.photos?.length > 1 ? `<span class="more">+${d.photos.length - 1}</span>` : ''}</div>
+      <div class="doc-body"><div class="row" style="gap:6px"><span class="dot" style="--c:${k.c}"></span><span class="faint" style="font-size:12px">${k.n}</span>${d.day ? `<span class="sp"></span><span class="tag accent">${d.day}일차</span>` : ''}</div>
+        <b>${esc(d.title)}</b>${d.note ? `<div class="faint ellip1">${esc(d.note)}</div>` : ''}<div class="row faint" style="gap:5px;font-size:12px;margin-top:2px">${av(w, 16)}${esc(w.name)}</div></div></button>`; }).join('')}</div>`
+    : `<div class="card">${empty('ticket', '아직 올린 서류가 없어요', '예약 확인 화면이나 티켓을 캡처해서 올려두면, 현장에서 바로 꺼내 볼 수 있어요.', `<button class="btn pri" data-act="add-doc">${I('plus')}첫 서류 올리기</button>`)}</div>`}
+  ${receipts.length ? `<div class="sec"><div><h2>정산 영수증</h2><p>지출에 붙인 영수증이에요.</p></div></div>
+    <div class="card rows">${receipts.map((e) => `<button class="r" data-act="edit-exp" data-id="${e.id}">${I('clip', 16)}<b class="grow">${esc(e.title)}</b><span class="faint" style="font-size:12px">${e.photos.length}장</span><span class="amt">${won(e.amount)}</span></button>`).join('')}</div>` : ''}`;
+}
+function docModal(r) {
+  openModal({
+    title: '티켓 · 서류 올리기',
+    body: `<label class="field"><span>사진 <small>· 캡처 화면도 좋아요, 최대 6장</small></span><input type="file" name="files" accept="image/*" multiple required style="height:auto;padding:10px"></label>
+      <label class="field"><span>이름</span><input type="text" name="title" required maxlength="60" placeholder="예: 제주항공 왕복 e티켓"></label>
+      <div class="field"><span>종류</span><div class="chips" style="flex-wrap:wrap">${DKINDS.map((k, i) => `<label class="chip ${i === 0 ? 'on' : ''}"><input type="radio" name="kind" value="${k.k}" ${i === 0 ? 'checked' : ''}><span class="dot" style="--c:${k.c}"></span>${k.n}</label>`).join('')}</div></div>
+      <label class="field"><span>언제 쓰나요 <small>· 선택</small></span><select name="day"><option value="">날짜 없음</option>${Array.from({ length: dayCount(r) }, (_, i) => `<option value="${i + 1}">${i + 1}일차 · ${dayLabel(r, i + 1)}</option>`).join('')}</select></label>
+      <label class="field"><span>메모 <small>· 예약번호, 체크인 시간 등</small></span><textarea name="note" maxlength="300" style="min-height:70px"></textarea></label>`,
+    ok: '올리기',
+    onOk(f) {
+      const fd = new FormData(f), files = fd.getAll('files').filter((x) => x.size).slice(0, 6);
+      if (!files.length) { toast('사진을 골라주세요'); return false; }
+      toast(shared(r) ? '올리는 중…' : '저장하는 중…');
+      Promise.all(files.map((x) => shrink(x, 1600, 0.82))).then((l) => uploadPhotos(r, l.filter(Boolean))).then((photos) => {
+        const d = { id: uid(), title: fd.get('title').trim(), kind: fd.get('kind'), day: +fd.get('day') || null, note: fd.get('note').trim(), photos, by: meId(r), at: now() };
+        r.docs.push(d); touch(r, d); render(); toast('보관함에 넣었어요');
+      });
+    },
+  });
+}
+function docView(r, d) {
+  const k = dkind(d.kind);
+  const f = openModal({
+    title: esc(d.title),
+    body: `<div class="row wrap" style="gap:8px"><span class="tag"><span class="dot" style="--c:${k.c}"></span>${k.n}</span>${d.day ? `<span class="tag accent">${d.day}일차 · ${dayLabel(r, d.day)}</span>` : ''}<span class="faint" style="font-size:12px">${esc(member(r, d.by).name)} · ${timeAgo(d.at)}</span></div>
+      ${d.note ? `<p style="margin:0;white-space:pre-wrap">${esc(d.note)}</p>` : ''}
+      <div class="doc-full">${(d.photos || []).map((x) => ph(x, esc(d.title))).join('') || '<p class="faint">사진이 없어요</p>'}</div>
+      <button type="button" class="btn sm ghost danger" data-del style="align-self:flex-start">${I('trash', 15)}삭제</button>`,
+  });
+  hydratePhotos();
+  $('[data-del]', f).addEventListener('click', () => { closeModal(); removeUndo(r, 'docs', d.id, `'${d.title}'을(를)`); });
+}
+
 // ───── 기록 ─────
 function journalTab(r) {
   const days = [...new Set(r.journal.map((j) => j.day))].sort((a, b) => a - b);
@@ -1134,7 +1201,7 @@ function journalTab(r) {
     ${r.journal.filter((j) => j.day === d).sort((a, b) => (a.upd || 0) - (b.upd || 0)).map((j) => { const w = member(r, j.by); return `<article class="card entry">
       <div class="row"><span class="mood">${j.mood}</span>${av(w, 22)}<b style="font-size:14px">${esc(w.name)}</b><span class="sp"></span>${j.by === meId(r) ? `<button class="btn ghost icon sm" data-act="del-entry" data-id="${j.id}" aria-label="삭제">${I('trash', 15)}</button>` : ''}</div>
       <p>${esc(j.text)}</p>
-      ${j.photos?.filter(Boolean).length ? `<div class="photos">${j.photos.filter(Boolean).map((src) => isRef(src) ? `<span class="ph"><img data-photo="${esc(src)}" alt="여행 사진" data-act="photo"></span>` : `<span class="ph"><img src="${src}" alt="여행 사진" data-act="photo" class="ready" loading="lazy"></span>`).join('')}</div>` : ''}
+      ${j.photos?.filter(Boolean).length ? `<div class="photos">${j.photos.filter(Boolean).map((src) => ph(src)).join('')}</div>` : ''}
     </article>`; }).join('')}</div></section>`).join('')
     : `<div class="card">${empty('camera', '여행이 시작되면 하루하루를 남겨보세요', '오늘의 기분, 좋았던 순간, 사진 몇 장이면 충분해요.', `<button class="btn pri" data-act="add-entry">${I('plus')}첫 기록 남기기</button>`)}</div>`}`;
 }
@@ -1159,14 +1226,14 @@ function entryModal(r) {
     },
   });
 }
-function shrink(file) {
+function shrink(file, max = 900, q = 0.75) {
   return new Promise((res) => {
     const img = new Image(), url = URL.createObjectURL(file);
     img.onload = () => {
-      const s = Math.min(1, 900 / Math.max(img.width, img.height));
+      const s = Math.min(1, max / Math.max(img.width, img.height));
       const c = document.createElement('canvas'); c.width = img.width * s; c.height = img.height * s;
       c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
-      res(c.toDataURL('image/jpeg', 0.75));
+      res(c.toDataURL('image/jpeg', q));
     };
     img.onerror = () => res('');
     img.src = url;
@@ -1427,6 +1494,8 @@ document.addEventListener('click', (ev) => {
     },
     'copy-plan': () => copy(planText(r), '일정을 복사했어요. 단체톡에 붙여넣어 보세요!'),
     'add-exp': () => expModal(r),
+    'add-doc': () => docModal(r),
+    'open-doc': () => docView(r, r.docs.find((d) => d.id === el.dataset.id)),
     'edit-exp': () => expModal(r, r.expenses.find((e) => e.id === el.dataset.id)),
     'copy-settle': () => { const { tx } = settle(r); copy(`💸 ${r.name} 정산\n총 ${won(r.expenses.reduce((s, e) => s + e.amount, 0))}\n\n` + tx.map((t) => `${member(r, t.from).name} → ${member(r, t.to).name}  ${won(t.amt)}`).join('\n'), '정산 결과를 복사했어요'); },
     'pack-template': () => { PACK_TEMPLATE.forEach((t) => { if (!r.checklist.some((c) => c.text === t)) r.checklist.push({ id: uid(), text: t, who: null, done: false, upd: now() }); }); touch(r); render(); },

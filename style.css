@@ -423,3 +423,17 @@ h3{margin:0;font-size:16px;font-weight:700;letter-spacing:-.015em}
 .preview .badge-next{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;background:var(--surface);border:1px solid var(--line);text-align:left;width:100%;cursor:pointer}
 .preview .badge-next:hover{border-color:var(--accent)}
 @media (max-width:760px){.is-room .trip-head .right:not(:has(.dday)){display:none}}
+/* 티켓·서류 보관함 */
+.docs{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.doc{display:flex;flex-direction:column;padding:0;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);overflow:hidden;text-align:left;transition:border-color .15s,transform .2s var(--ease)}
+.doc:hover{border-color:var(--accent);transform:translateY(-2px)}
+.doc-thumb{position:relative;aspect-ratio:4/3;background:var(--sunk);display:grid;place-items:center;color:var(--faint)}
+.doc-thumb .ph{position:absolute;inset:0;border-radius:0;aspect-ratio:auto}
+.doc-thumb .more{position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,.55);color:#fff;font-size:12px;font-weight:700;padding:2px 8px;border-radius:99px}
+.doc-body{padding:12px 14px 14px;display:flex;flex-direction:column;gap:3px}
+.doc-body b{font-size:15px;line-height:1.4}
+.ellip1{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc-full{display:flex;flex-direction:column;gap:10px}
+.doc-full .ph{aspect-ratio:auto;min-height:120px}
+.doc-full .ph img{height:auto;object-fit:contain}
+@media (max-width:760px){.docs{grid-template-columns:1fr 1fr;gap:10px}}
