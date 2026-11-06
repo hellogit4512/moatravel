@@ -141,7 +141,77 @@ const room = () => S.rooms[route().id];
 const member = (r, id) => r.members.find((m) => m.id === id) || { id, name: '?', color: '#999' };
 const meId = (r) => S.me[r.id];
 const av = (m, s) => `<span class="av" title="${esc(m.name)}" style="background:${m.color}${s ? `;width:${s}px;height:${s}px;font-size:${Math.round(s * 0.42)}px` : ''}">${esc(m.name.slice(0, 1))}</span>`;
-function touch(r, item) { const t = now(); if (item) item.upd = t; r.updatedAt = t; save(); }
+function touch(r, item) { const t = now(); if (item) item.upd = t; r.updatedAt = t; save(); queuePush(r); }
+
+// ───────── 실시간 공유방 (Cloudflare Worker) ─────────
+const SYNC = (window.MOA_CONFIG || {}).syncUrl || '';
+const sync = { timer: {}, busy: {}, online: true, deferred: false };
+const shared = (r) => !!(SYNC && S.sync?.[r?.id]);
+const newKey = () => { const b = crypto.getRandomValues(new Uint8Array(24)); return b64u(b); };
+async function api(method, id, key, body, v) {
+  const res = await fetch(`${SYNC}/rooms/${id}${v ? `?v=${v}` : ''}`, { method, headers: { 'X-Room-Key': key, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (res.status === 204) return null;
+  const js = await res.json().catch(() => ({}));
+  if (!res.ok) { const e = new Error(js.error || '서버 오류'); e.status = res.status; throw e; }
+  return js;
+}
+const forSync = (r) => ({ ...r, journal: r.journal.map((j) => ({ ...j, photos: [] })) });
+function applyRemote(id, remote, v) {
+  const local = S.rooms[id];
+  const merged = local ? mergeRoom(local, remote) : remote;
+  const changed = !local || JSON.stringify(forSync(merged)) !== JSON.stringify(forSync(local));
+  S.rooms[id] = merged; S.sync[id].v = v; save();
+  if (changed && route().id === id) safeRender();
+}
+function safeRender() {
+  const a = document.activeElement;
+  if ($('#modal-root').innerHTML || dragId || (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.value)) { sync.deferred = true; return; }
+  sync.deferred = false; render();
+}
+function setOnline(ok) { if (sync.online !== ok) { sync.online = ok; const el = $('.sync-pill'); if (el) el.outerHTML = syncPill(room()); } }
+function syncPill(r) {
+  if (!shared(r)) return '';
+  return `<span class="sync-pill ${sync.online ? '' : 'off'}" title="${sync.online ? '친구들이 바꾼 내용이 몇 초 안에 보여요' : '연결이 끊겼어요. 다시 연결되면 자동으로 합쳐요'}"><i></i>${sync.online ? '실시간 공유 중' : '연결 끊김 · 기기에 저장 중'}</span>`;
+}
+function queuePush(r) {
+  if (!shared(r)) return;
+  clearTimeout(sync.timer[r.id]);
+  sync.timer[r.id] = setTimeout(() => pushNow(r.id), 350);
+}
+async function pushNow(id) {
+  const s = S.sync[id], r = S.rooms[id]; if (!s || !r) return;
+  if (sync.busy[id]) { sync.timer[id] = setTimeout(() => pushNow(id), 300); return; }
+  sync.busy[id] = true;
+  try { const res = await api('PUT', id, s.key, { room: forSync(r) }); applyRemote(id, res.room, res.version); setOnline(true); }
+  catch (e) { setOnline(false); if (e.status === 403 || e.status === 404) toast(e.message); else sync.timer[id] = setTimeout(() => pushNow(id), 5000); }
+  finally { sync.busy[id] = false; }
+}
+async function pollNow() {
+  const r = route().page === 'room' ? room() : null;
+  if (!shared(r) || document.hidden || sync.busy[r.id] || sync.timer[r.id + ':pending']) return;
+  const s = S.sync[r.id];
+  try { const res = await api('GET', r.id, s.key, null, s.v); if (res) applyRemote(r.id, res.room, res.version); setOnline(true); if (sync.deferred) safeRender(); }
+  catch (e) { setOnline(false); }
+}
+setInterval(pollNow, 5000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) pollNow(); });
+addEventListener('online', () => { const r = room(); if (shared(r)) pushNow(r.id); });
+document.addEventListener('focusout', () => setTimeout(() => { if (sync.deferred) safeRender(); }, 50));
+async function makeShared(r) {
+  const key = newKey();
+  const res = await api('POST', r.id, key, { room: forSync(r) });
+  S.sync = S.sync || {}; S.sync[r.id] = { key, v: res.version };
+  sysMsg(r, `${member(r, meId(r)).name}님이 실시간 공유방을 열었어요`); touch(r);
+}
+const sharedUrl = (r) => `${location.href.split('#')[0]}#s=${r.id}.${S.sync[r.id].key}`;
+async function joinShared(id, key) {
+  const res = await api('GET', id, key);
+  S.sync = S.sync || {}; S.sync[id] = { key, v: 0 };
+  const ex = S.rooms[id];
+  S.rooms[id] = ex ? mergeRoom(ex, res.room) : res.room; S.sync[id].v = res.version; save();
+  if (ex) queuePush(S.rooms[id]);
+  return { room: S.rooms[id], existed: !!ex };
+}
 function sysMsg(r, text) { r.messages.push({ id: uid(), sys: true, text, at: now(), upd: now() }); }
 function removeUndo(r, key, id, label) {
   const arr = r[key], i = arr.findIndex((x) => x.id === id); if (i < 0) return;
@@ -477,6 +547,19 @@ function mergeRoom(a, b) {
   return out;
 }
 async function checkJoin() {
+  const sm = location.hash.match(/^#s=([a-z0-9]{6,24})\.([A-Za-z0-9_-]{20,64})$/);
+  if (sm) {
+    if (!SYNC) { toast('공유방 서버가 설정되지 않았어요'); history.replaceState(null, '', location.pathname + '#/'); return render(); }
+    try {
+      const { room: jr, existed } = await joinShared(sm[1], sm[2]);
+      toast(existed ? '공유방과 다시 연결했어요' : `'${jr.name}' 공유방에 들어왔어요`);
+      history.replaceState(null, '', location.pathname + `#/r/${jr.id}/places`);
+    } catch (e) {
+      toast(e.status === 403 ? '초대 링크가 올바르지 않아요' : e.status === 404 ? '여행방을 찾을 수 없어요' : '서버에 연결하지 못했어요. 잠시 후 다시 열어주세요.');
+      history.replaceState(null, '', location.pathname + '#/');
+    }
+    return render();
+  }
   const m = location.hash.match(/^#join=(.+)$/); if (!m) return;
   try {
     const inc = await decodeRoom(m[1]);
@@ -548,7 +631,7 @@ function render() {
   if (r && !meId(r)) setTimeout(() => pickMe(r), 60);
 }
 
-function brand() { return `<button class="brand" data-act="home" aria-label="모아여행 홈"><span class="brand-mark">${I('route', 17, 2)}</span><span class="brand-name">모아여행</span></button>`; }
+function brand() { return `<button class="brand" data-act="home" aria-label="모아여행 홈"><img class="brand-mark" src="icon.svg" alt="" width="34" height="34"><span class="brand-name">모아여행</span></button>`; }
 function themeBtn(cls = 'btn ghost icon sm') {
   const dark = S.theme === 'dark' || (S.theme === 'auto' && matchMedia('(prefers-color-scheme:dark)').matches);
   return `<button class="${cls}" data-act="theme" aria-label="테마 바꾸기" title="테마 바꾸기">${I(dark ? 'sun' : 'moon')}</button>`;
@@ -657,7 +740,7 @@ function roomPage(r, tab) {
     <div class="grow">
       <div class="kicker">${range(r)} · ${nights(r)}</div>
       <h1>${esc(r.name)}</h1>
-      <div class="meta"><span class="avs">${r.members.map((m) => av(m, 24)).join('')}</span><span>${r.members.length}명</span>${me ? `<span class="sep"></span><button class="link" data-act="pick-me" style="color:var(--muted);font-weight:500">나: ${esc(me.name)}</button>` : ''}</div>
+      <div class="meta"><span class="avs">${r.members.map((m) => av(m, 24)).join('')}</span><span>${r.members.length}명</span>${syncPill(r)}${me ? `<span class="sep"></span><button class="link" data-act="pick-me" style="color:var(--muted);font-weight:500">나: ${esc(me.name)}</button>` : ''}</div>
     </div>
     <div class="right">
       <div class="dday">${r.demo ? '예시' : dday(r)}</div>
@@ -1138,6 +1221,40 @@ function pickMe(r) {
   });
 }
 async function shareModal(r, fresh) {
+  if (SYNC && !r.demo && !shared(r)) {
+    const f0 = openModal({
+      title: fresh ? '여행방이 만들어졌어요' : '일행 초대',
+      body: `<p class="muted" style="margin:0;font-size:14px"><b>실시간 공유방</b>으로 열면 친구들이 링크 하나로 들어와서 함께 고치고, 바뀐 내용이 몇 초 안에 모두에게 보여요.</p>
+        <ul class="muted" style="margin:0;padding-left:18px;font-size:13.5px;line-height:1.8"><li>링크를 가진 사람만 들어올 수 있어요</li><li>사진은 올라가지 않고 각자 기기에만 남아요</li><li>지금까지 적은 내용이 그대로 올라가요</li></ul>
+        <button type="button" class="btn pri block" data-live style="height:46px">${I('share', 16)}실시간 공유방 열기</button>
+        <button type="button" class="btn ghost" data-legacy>서버 없이 링크로만 주고받기</button>`,
+    });
+    $('[data-live]', f0).addEventListener('click', async (e) => {
+      e.currentTarget.disabled = true; e.currentTarget.textContent = '여는 중…';
+      try { await makeShared(r); closeModal(); render(); shareModal(r); toast('실시간 공유방을 열었어요'); }
+      catch (err) { toast('서버에 연결하지 못했어요. 잠시 후 다시 해주세요.'); closeModal(); }
+    });
+    $('[data-legacy]', f0).addEventListener('click', () => { closeModal(); shareModal(Object.assign(r, { _legacy: true })); });
+    if (!r._legacy) return;
+  }
+  delete r._legacy;
+  if (shared(r)) {
+    const url = sharedUrl(r), msg = `[모아여행] ${r.name} 같이 계획해요!\n${url}`;
+    const f1 = openModal({
+      title: '일행 초대',
+      body: `<div class="row">${syncPill(r)}</div>
+        <p class="muted" style="margin:0;font-size:14px">이 링크를 단체톡에 보내주세요. 열면 바로 같은 여행방에 들어와요.</p>
+        <div class="input-wrap">${I('link', 16)}<input type="text" readonly value="${esc(url)}" style="font-size:13px" aria-label="초대 링크"></div>
+        <p class="faint" style="margin:-6px 0 0;font-size:12.5px">링크에 참여 키가 들어 있어요. 일행에게만 보내주세요.</p>
+        <div class="row wrap"><button type="button" class="btn pri grow" data-copy>${I('copy', 16)}링크 복사</button>${navigator.share ? `<button type="button" class="btn grow" data-native>${I('share', 16)}공유</button>` : ''}</div>
+        <button type="button" class="btn ghost" data-plan>${I('cal', 16)}일정을 텍스트로 복사</button>`,
+    });
+    $('input[readonly]', f1).addEventListener('focus', (e) => e.target.select());
+    $('[data-copy]', f1).addEventListener('click', () => copy(msg, '복사했어요. 단체톡에 붙여넣어 주세요!'));
+    $('[data-native]', f1)?.addEventListener('click', () => navigator.share({ title: r.name, text: `[모아여행] ${r.name} 같이 계획해요!`, url }).catch(() => {}));
+    $('[data-plan]', f1).addEventListener('click', () => copy(planText(r), '일정을 복사했어요'));
+    return;
+  }
   const link = await shareLink(r);
   const msg = `[모아여행] ${r.name} 같이 계획해요!\n${link}`;
   const form = openModal({
@@ -1338,4 +1455,4 @@ document.addEventListener('drop', (ev) => {
 // ───────── 시작 ─────────
 applyTheme();
 matchMedia('(prefers-color-scheme:dark)').addEventListener('change', () => { if (S.theme === 'auto') { applyTheme(); render(); } });
-if (location.hash.startsWith('#join=')) checkJoin(); else render();
+if (/^#(join|s)=/.test(location.hash)) checkJoin(); else render();
