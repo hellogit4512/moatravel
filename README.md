@@ -12,6 +12,11 @@
 - **공유 링크** — 서버 없이 링크에 여행방을 압축해 담고, 받은 링크를 열면 자동으로 합쳐짐
 - 다크 모드, 모바일 화면, 홈 화면에 추가(PWA)
 
+## 지도 (국내 카카오맵 · 해외 구글맵)
+`config.js`에 키를 넣으면 모든 사람에게 적용돼요. 비워두면 OpenStreetMap으로 동작해요.
+- 카카오: developers.kakao.com → JavaScript 키, 플랫폼 Web에 `https://hellogit4512.github.io` 등록, 카카오맵 사용 설정 ON
+- 구글: Maps JavaScript API + Places API (New) 사용 설정, HTTP 리퍼러 `https://hellogit4512.github.io/*` 제한
+
 ## 실행
 정적 파일이라 아무 웹서버로나 열면 돼요.
 
