@@ -785,10 +785,10 @@ function roomPage(r, tab) {
     <div class="grow">
       <div class="kicker">${range(r)} · ${nights(r)}</div>
       <h1>${esc(r.name)}</h1>
-      <div class="meta"><span class="avs">${r.members.map((m) => av(m, 24)).join('')}</span><span>${r.members.length}명</span>${syncPill(r)}${me ? `<span class="sep"></span><button class="link" data-act="pick-me" style="color:var(--muted);font-weight:500">나: ${esc(me.name)}</button>` : ''}</div>
+      <div class="meta"><span class="avs">${r.members.map((m) => av(m, 24)).join('')}</span><span>${r.members.length}명</span>${syncPill(r)}${me ? `<span class="sep"></span><button class="link" data-act="pick-me" style="color:var(--muted);font-weight:500;text-decoration:none">${esc(me.name)}(으)로 참여 중 <span style="color:var(--accent)">변경</span></button>` : ''}</div>
     </div>
     <div class="right">
-      <div class="dday">${r.demo ? '예시' : dday(r)}</div>
+      ${r.demo ? '' : `<div class="dday">${dday(r)}</div>`}
       <button class="btn pri sm share-d" data-act="share">${I('share', 16)}초대 · 공유</button>
     </div>
   </section>

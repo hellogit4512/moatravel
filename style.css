@@ -422,3 +422,4 @@ h3{margin:0;font-size:16px;font-weight:700;letter-spacing:-.015em}
 .preview .place:nth-child(2){margin-left:28px;opacity:.96}
 .preview .badge-next{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;background:var(--surface);border:1px solid var(--line);text-align:left;width:100%;cursor:pointer}
 .preview .badge-next:hover{border-color:var(--accent)}
+@media (max-width:760px){.is-room .trip-head .right:not(:has(.dday)){display:none}}
