@@ -27,6 +27,7 @@ const KR = /한국|대한민국|국내|서울|부산|제주|강릉|속초|양양
 
 // ───────── 아이콘 ─────────
 const ICONS = {
+  bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   chat: '<path d="M20.5 11.5a8.5 8.5 0 0 1-12.3 7.6L3.5 20.5l1.4-4.4A8.5 8.5 0 1 1 20.5 11.5z"/>',
   pin: '<path d="M12 21s-6.5-5.8-6.5-11a6.5 6.5 0 0 1 13 0c0 5.2-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
   cal: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
@@ -70,7 +71,7 @@ const I = (n, s = 18, sw = 1.7) => `<svg class="i" width="${s}" height="${s}" vi
 
 // ───────── 상태 ─────────
 let S = load();
-const ui = { filter: 'all', sort: 'new', view: 'list', openCmt: {}, q: '' };
+const ui = { filter: 'all', sort: 'new', view: 'map', openCmt: {}, q: '' };
 const failed = {};
 let mapCtl = null;
 
@@ -205,12 +206,13 @@ async function pushNow(id) {
 }
 async function pollNow() {
   const r = route().page === 'room' ? room() : null;
-  if (!shared(r) || document.hidden || sync.busy[r.id] || S.sync[r.id].needPass) return;
+  if (!shared(r) || sync.busy[r.id] || S.sync[r.id].needPass) return;
+  if (document.hidden) { if (Date.now() - (sync.bg || 0) < 20000) return; sync.bg = Date.now(); }
   try { const res = await api('GET', r.id, { v: S.sync[r.id].v }); if (res) applyRemote(r.id, res); setOnline(true); if (sync.deferred) safeRender(); }
   catch (e) { onSyncError(r.id, e); }
 }
 setInterval(pollNow, 5000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) pollNow(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { pollNow(); if (room()) safeRender(); } });
 addEventListener('online', () => { const r = room(); if (shared(r)) pushNow(r.id); });
 document.addEventListener('focusout', () => setTimeout(() => { if (sync.deferred) safeRender(); }, 50));
 async function makeShared(r) {
@@ -559,7 +561,7 @@ async function reverseAddr(lat, lng) {
 }
 function pickOnMap(id) {
   const card = $(`.place[data-pid="${id}"]`);
-  if (card && card.offsetParent) { card.scrollIntoView({ behavior: 'smooth', block: 'center' }); card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash'); }
+  if (card && card.offsetParent) { card.scrollIntoView({ behavior: 'smooth', block: isWide() ? 'center' : 'start' }); card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash'); }
   else { ui.sel = id; const box = $('#map-sel'); const r = room(); const p = r?.places.find((x) => x.id === id); if (box && p) box.innerHTML = placeCard(r, p); }
 }
 
@@ -690,7 +692,7 @@ function render() {
   }
   const r = rt.page === 'room' ? S.rooms[rt.id] : null;
   if (r) { r.docs ||= []; S.seen ||= {}; if (S.seen[r.id] == null) S.seen[r.id] = r.messages.at(-1)?.at || 0; }
-  document.title = r ? `${r.name} · 모아여행` : '모아여행 · 함께 모아 만드는 우리 여행';
+  document.title = r ? `${rt.tab !== 'chat' && unread(r) ? `(${unread(r)}) ` : ''}${r.name} · 모아여행` : '모아여행 · 함께 모아 만드는 우리 여행';
   const y = scrollY;
   $('#app').innerHTML = `<div class="shell ${r ? 'is-room' : 'is-home'}">${side(rt, r)}<div class="content">${topbar(r)}<main class="main" id="main">${r ? roomPage(r, rt.tab) : home()}</main></div>${r ? bnav(rt.tab, r) : ''}</div>`;
   document.body.classList.toggle('is-home', !r);
@@ -831,9 +833,14 @@ function refreshChat() {
 }
 function notifyChat(r, fresh) {
   if (route().id !== r.id) return;
-  if (route().tab === 'chat' && !document.hidden) return;
-  const m = fresh.at(-1);
-  toast(`💬 ${member(r, m.by).name}: ${m.text.slice(0, 40)}`, { label: '보기', fn() { go(`#/r/${r.id}/chat`); } });
+  const m = fresh.at(-1), who = member(r, m.by).name;
+  if (document.hidden) {
+    const u = unread(r); document.title = `(${u}) ${r.name} · 모아여행`;
+    if (window.Notification?.permission === 'granted') try { const n = new Notification(`💬 ${r.name}`, { body: `${who}: ${m.text.slice(0, 80)}`, icon: 'icon.svg', tag: 'moa-' + r.id }); n.onclick = () => { focus(); go(`#/r/${r.id}/chat`); n.close(); }; } catch (e) { /* noop */ }
+    return;
+  }
+  if (route().tab === 'chat') return;
+  toast(`💬 ${who}: ${m.text.slice(0, 40)}`, { label: '보기', fn() { go(`#/r/${r.id}/chat`); } });
   $$('[data-k="chat"]').forEach((b) => { b.classList.remove('ping'); void b.offsetWidth; b.classList.add('ping'); });
   if (navigator.vibrate) try { navigator.vibrate(30); } catch (e) { /* noop */ }
 }
@@ -851,7 +858,8 @@ function chatTab(r) {
     html += `<div class="msg ${mine ? 'me' : ''} ${first ? 'first' : ''} ${fresh ? 'new' : ''}">${mine ? '' : av(w, 30)}<div>${first && !mine ? `<div class="who">${esc(w.name)}</div>` : ''}<div class="bub">${esc(m.text)}</div></div><span class="t">${hm(m.at)}</span></div>`;
     prev = m;
   });
-  return `<div class="sec"><div><h2>대화</h2><p>정할 것, 떠오른 생각을 가볍게 남겨요. 공유 링크를 주고받으면 함께 합쳐져요.</p></div></div>
+  const canAsk = shared(r) && window.Notification && Notification.permission === 'default';
+  return `<div class="sec"><div><h2>대화</h2><p>정할 것, 떠오른 생각을 가볍게 남겨요. ${shared(r) ? '새 메시지가 오면 알려드려요.' : '함께 보는 여행방으로 열면 실시간으로 주고받아요.'}</p></div>${canAsk ? `<div class="acts"><button class="btn sm" data-act="notif">${I('bell', 15)}알림 받기</button></div>` : ''}</div>
   <div class="card chat"><div class="msgs">${html || empty('chat', '첫 마디를 남겨보세요', '어디 가고 싶은지, 언제가 좋은지부터 이야기해요.')}</div>
   <form class="composer" data-form="chat"><input type="text" name="t" placeholder="메시지 보내기" autocomplete="off" maxlength="500" aria-label="메시지"><button class="btn pri icon" aria-label="보내기">${I('send')}</button></form></div>`;
 }
@@ -864,7 +872,7 @@ function placesTab(r) {
   const q = ui.q.trim().toLowerCase();
   if (q) list = list.filter((p) => `${p.name} ${p.addr || ''} ${p.memo || ''} ${member(r, p.by).name}`.toLowerCase().includes(q));
   list.sort(ui.sort === 'heart' ? (a, b) => b.hearts.length - a.hearts.length || b.at - a.at : (a, b) => b.at - a.at);
-  const wide = isWide(), showMap = wide || ui.view === 'map', showList = wide || ui.view === 'list';
+  const wide = isWide(), showMap = wide || ui.view === 'map', showList = true;
   const pv = provider(r);
   return `<div class="sec"><div><h2>우리의 가고 싶은 곳</h2><p>누구의 제안이든 좋아요. 마음에 들면 하트를 눌러주세요.</p></div>
     <div class="acts"><button class="btn pri" data-act="add-place">${I('plus')}장소 제안</button></div></div>
@@ -877,16 +885,15 @@ function placesTab(r) {
     </div>
     <div class="row">
       ${showList ? `<div class="seg"><button class="${ui.sort === 'new' ? 'on' : ''}" data-act="sort" data-k="new">최신</button><button class="${ui.sort === 'heart' ? 'on' : ''}" data-act="sort" data-k="heart">${I('heart', 14, 2)}인기</button></div>` : ''}
-      ${wide ? '' : `<div class="seg"><button class="${ui.view === 'list' ? 'on' : ''}" data-act="view" data-k="list" aria-label="목록">${I('list', 16)}</button><button class="${ui.view === 'map' ? 'on' : ''}" data-act="view" data-k="map" aria-label="지도">${I('map', 16)}</button></div>`}
+      ${wide ? '' : `<div class="seg"><button class="${ui.view === 'map' ? 'on' : ''}" data-act="view" data-k="map" aria-label="지도와 목록">${I('map', 16)}</button><button class="${ui.view === 'list' ? 'on' : ''}" data-act="view" data-k="list" aria-label="목록만">${I('list', 16)}</button></div>`}
     </div>
   </div>
-  <div class="places-layout ${wide ? 'split' : ''}">
+  <div class="places-layout ${wide ? 'split' : showMap ? 'stack' : ''}">
     ${showList ? `<div class="plist">${list.length ? list.map((p) => placeCard(r, p)).join('') : r.places.length ? empty('search', '조건에 맞는 장소가 없어요', '다른 분류를 골라보세요.') : empty('pin', '아직 모아둔 곳이 없어요', `${PNAME[pv]}에서 검색해서 가고 싶은 곳을 제안해보세요.`, `<button class="btn pri" data-act="add-place">${I('plus')}첫 장소 제안하기</button>`)}
       <p class="faint" style="text-align:center;font-size:13px;margin:12px 0 0">하트는 순위를 정하는 참고예요. 최종 일정은 함께 이야기해서 정해요.</p></div>` : ''}
-    ${showMap ? `<div>
+    ${showMap ? `<div class="mapblock">
       <div class="${wide ? 'map-pane' : 'map-mobile'}"><div id="map-slot"></div></div>
-      <div class="row faint" style="font-size:12px;margin-top:8px;gap:6px">${I('map', 14)}<span class="map-src">${PNAME[pv]}</span><span>· 숫자는 일정 순서, 작은 점은 날짜 미정</span></div>
-      ${wide ? '' : `<div id="map-sel" style="margin-top:12px">${ui.sel && r.places.find((x) => x.id === ui.sel) ? placeCard(r, r.places.find((x) => x.id === ui.sel)) : ''}</div>`}
+      ${wide ? `<div class="row faint" style="font-size:12px;margin-top:8px;gap:6px">${I('map', 14)}<span class="map-src">${PNAME[pv]}</span><span>· 숫자는 일정 순서, 작은 점은 날짜 미정</span></div>` : ''}
     </div>` : ''}
   </div>`;
 }
@@ -1510,10 +1517,11 @@ document.addEventListener('click', (ev) => {
     filter: () => { ui.filter = el.dataset.k; render(); },
     sort: () => { ui.sort = el.dataset.k; render(); },
     view: () => { ui.view = el.dataset.k; render(); },
+    notif: () => Notification.requestPermission().then((p) => { toast(p === 'granted' ? '창을 내려놔도 새 메시지를 알려드릴게요' : '알림이 꺼져 있어요. 브라우저 설정에서 켤 수 있어요'); render(); }),
     'add-place': () => placeModal(r),
     'place-menu': () => placeMenu(r, P(el.dataset.id)),
     locate: () => {
-      if (!isWide() && ui.view !== 'map') { ui.view = 'map'; ui.sel = el.dataset.id; render(); setTimeout(() => mapCtl?.focus(el.dataset.id), 400); return; }
+      if (!isWide() && ui.view !== 'map') { ui.view = 'map'; render(); setTimeout(() => mapCtl?.focus(el.dataset.id), 400); }
       mapCtl?.focus(el.dataset.id); mapCtl?.hl(el.dataset.id, true); setTimeout(() => mapCtl?.hl(el.dataset.id, false), 1500);
     },
     heart: () => { const p = P(el.dataset.id), me = meId(r); p.hearts = p.hearts.includes(me) ? p.hearts.filter((h) => h !== me) : [...p.hearts, me]; touch(r, p); render(); },
