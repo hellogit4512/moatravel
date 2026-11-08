@@ -437,3 +437,16 @@ h3{margin:0;font-size:16px;font-weight:700;letter-spacing:-.015em}
 .doc-full .ph{aspect-ratio:auto;min-height:120px}
 .doc-full .ph img{height:auto;object-fit:contain}
 @media (max-width:760px){.docs{grid-template-columns:1fr 1fr;gap:10px}}
+
+/* 대화: 새 메시지 모션 · 안 읽음 표시 */
+.msg.new{animation:msgIn .42s var(--ease) both}
+.msg.me.new{transform-origin:right bottom}
+.msg.new .bub{animation:bubGlow 1.6s ease-out .1s}
+@keyframes msgIn{from{opacity:0;transform:translateY(12px) scale(.94)}}
+@keyframes bubGlow{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 45%,transparent)}100%{box-shadow:0 0 0 10px transparent}}
+.nav .cnt.unread{color:#fff;background:var(--warm);padding:1px 7px;border-radius:99px;font-weight:700;animation:pop .5s}
+.bnav button{position:relative}
+.bnav .udot{position:absolute;top:8px;left:calc(50% + 7px);width:8px;height:8px;border-radius:50%;background:var(--warm);box-shadow:0 0 0 2px var(--surface)}
+.ping .i{animation:ring .7s ease 2}
+@keyframes ring{20%{transform:rotate(-14deg) scale(1.15)}40%{transform:rotate(12deg) scale(1.15)}60%{transform:rotate(-8deg)}80%{transform:rotate(4deg)}}
+@media (prefers-reduced-motion:reduce){.msg.new,.msg.new .bub,.ping .i,.nav .cnt.unread{animation:none}}

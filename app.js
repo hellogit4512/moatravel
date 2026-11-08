@@ -79,7 +79,7 @@ function load() {
   return { rooms: {}, me: {}, theme: 'auto', keys: {} };
 }
 function save() {
-  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('저장 공간이 부족해요. 사진을 줄여주세요.'); }
+  try { localStorage.setItem(KEY, JSON.stringify(S)); return true; } catch (e) { toast('이 기기의 저장 공간이 꽉 찼어요. 함께 보는 여행방으로 열면 사진은 서버에 저장돼요.'); return false; }
 }
 
 // ───────── 유틸 ─────────
@@ -168,13 +168,15 @@ const refsOnly = (x) => ({ ...x, photos: (x.photos || []).filter(isRef) });
 const forSync = (r) => ({ ...r, journal: r.journal.map(refsOnly), docs: (r.docs || []).map(refsOnly), expenses: r.expenses.map(refsOnly) });
 function applyRemote(id, res) {
   const local = S.rooms[id];
-  const merged = local ? mergeRoom(local, res.room) : res.room;
+  const inc = cleanRoom(res.room), merged = local ? mergeRoom(local, inc) : inc;
+  if (local) { const had = new Set(local.messages.map((m) => m.id)); const fresh = merged.messages.filter((m) => !had.has(m.id) && !m.sys && m.by !== meId(merged)); if (fresh.length) setTimeout(() => notifyChat(merged, fresh), 0); }
   const changed = !local || JSON.stringify(forSync(merged)) !== JSON.stringify(forSync(local));
   S.rooms[id] = merged; Object.assign(S.sync[id], { v: res.version, hasPass: !!res.hasPass, needPass: false }); save();
   if (changed && route().id === id) safeRender();
 }
 function safeRender() {
   const a = document.activeElement;
+  if (!$('#modal-root').innerHTML && a?.closest?.('.composer') && route().tab === 'chat') { refreshChat(); return; }
   if ($('#modal-root').innerHTML || dragId || (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.value)) { sync.deferred = true; return; }
   sync.deferred = false; render();
 }
@@ -224,7 +226,7 @@ async function joinShared(id, key, pass) {
   const res = await api('GET', id, { auth });
   S.sync = S.sync || {}; S.sync[id] = { ...auth, v: res.version, hasPass: !!res.hasPass };
   const ex = S.rooms[id];
-  S.rooms[id] = ex ? mergeRoom(ex, res.room) : res.room; save();
+  const inc = cleanRoom(res.room); S.rooms[id] = ex ? mergeRoom(ex, inc) : inc; save();
   if (ex) queuePush(S.rooms[id]);
   return { room: S.rooms[id], existed: !!ex };
 }
@@ -247,14 +249,16 @@ function passGate(r) {
     <form class="row" data-form="gate" style="max-width:360px;margin:-8px auto 32px;padding:0 20px"><input type="password" name="t" required placeholder="비밀번호" class="grow" autocomplete="current-password" aria-label="비밀번호"><button class="btn pri">확인</button></form></div>`;
 }
 // 공유 사진: 서버에서 받아 화면에 붙이기
-const ph = (src, alt = '사진') => (isRef(src) ? `<span class="ph"><img data-photo="${esc(src)}" alt="${alt}" data-act="photo"></span>` : `<span class="ph"><img src="${src}" alt="${alt}" data-act="photo" class="ready" loading="lazy"></span>`);
+const ph = (src, alt = '사진', act = true) => { const a = act ? ' data-act="photo"' : ''; return isRef(src) ? `<span class="ph"><img data-photo="${esc(src)}" alt="${alt}"${a}></span>` : PHOTO_OK.test(src || '') ? `<span class="ph"><img src="${src}" alt="${alt}"${a} class="ready" loading="lazy"></span>` : ''; };
 const photoCache = new Map();
 async function uploadPhotos(r, list) {
   if (!shared(r)) return list;
   const out = [];
   for (const d of list) {
-    try { const { pid } = await api('POST', r.id, { path: '/photos', body: { data: d } }); out.push('p:' + pid); }
-    catch (e) { out.push(d); toast('사진 하나를 올리지 못해 이 기기에만 저장했어요'); }
+    let pid = null, err = null;
+    for (let i = 0; i < 2 && !pid; i++) { try { ({ pid } = await api('POST', r.id, { path: '/photos', body: { data: d } })); } catch (e) { err = e; } }
+    if (pid) out.push('p:' + pid);
+    else { out.push(d); setTimeout(() => toast(`사진을 서버에 올리지 못했어요 (${err?.message || '연결 오류'}). 이 기기에서만 보여요.`), 1600); }
   }
   return out;
 }
@@ -262,7 +266,7 @@ function hydratePhotos() {
   const r = room(); if (!r) return;
   $$('img[data-photo]').forEach(async (img) => {
     const ref = img.dataset.photo;
-    if (!photoCache.has(ref)) photoCache.set(ref, api('GET', r.id, { path: `/photos/${ref.slice(2)}` }).then((b) => URL.createObjectURL(b)).catch(() => ''));
+    if (!photoCache.has(ref)) photoCache.set(ref, api('GET', r.id, { path: `/photos/${ref.slice(2)}` }).then((b) => URL.createObjectURL(b)).catch(() => { setTimeout(() => photoCache.delete(ref), 15000); return ''; }));
     const url = await photoCache.get(ref);
     if (url) { img.src = url; img.classList.add('ready'); } else img.closest('.ph')?.classList.add('broken');
   });
@@ -601,6 +605,17 @@ function mergeRoom(a, b) {
   out.updatedAt = Math.max(a.updatedAt || 0, b.updatedAt || 0);
   return out;
 }
+// 밖에서 들어온 여행방 데이터 정리: 글 내용 외의 값에서 HTML/CSS를 깰 수 있는 문자를 지워요
+const FREE = new Set(['name', 'title', 'text', 'memo', 'note', 'addr', 'dest']);
+const PHOTO_OK = /^(p:[a-z0-9]{8,32}|data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+)$/;
+function cleanVal(v, k) {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  if (typeof v === 'string') return FREE.has(k) ? v.slice(0, 2000) : v.replace(/[<>"'`&;(){}\\=]/g, '').slice(0, 300);
+  if (Array.isArray(v)) return k === 'photos' ? v.filter((p) => typeof p === 'string' && PHOTO_OK.test(p)) : v.map((x) => cleanVal(x, k));
+  if (v && typeof v === 'object') { const o = {}; for (const [kk, vv] of Object.entries(v)) if (!/^__|^constructor$|^prototype$/.test(kk)) o[cleanVal(kk, 'key')] = cleanVal(vv, kk); return o; }
+  return typeof v === 'boolean' || v === null ? v : null;
+}
+const cleanRoom = (r) => { const o = cleanVal(r, 'room'); ['members', 'places', 'messages', 'expenses', 'checklist', 'journal', 'docs'].forEach((k) => { o[k] = (Array.isArray(o[k]) ? o[k] : []).filter((x) => x && typeof x.id === 'string' && x.id); }); return o; };
 async function checkJoin() {
   const sm = location.hash.match(/^#s=([a-z0-9]{6,24})\.([A-Za-z0-9_-]{20,64})$/);
   if (sm) {
@@ -620,7 +635,7 @@ async function checkJoin() {
   }
   const m = location.hash.match(/^#join=(.+)$/); if (!m) return;
   try {
-    const inc = await decodeRoom(m[1]);
+    const inc = cleanRoom(await decodeRoom(m[1]));
     const ex = S.rooms[inc.id];
     S.rooms[inc.id] = ex ? mergeRoom(ex, inc) : inc; save();
     toast(ex ? '친구들의 최신 내용을 합쳤어요' : `'${inc.name}' 여행방에 들어왔어요`);
@@ -674,10 +689,10 @@ function render() {
     if (rt.id === 'demo') { S.rooms.demo = demoRoom(); S.me.demo = S.rooms.demo.members[0].id; save(); } else return go('#/');
   }
   const r = rt.page === 'room' ? S.rooms[rt.id] : null;
-  if (r) r.docs ||= [];
+  if (r) { r.docs ||= []; S.seen ||= {}; if (S.seen[r.id] == null) S.seen[r.id] = r.messages.at(-1)?.at || 0; }
   document.title = r ? `${r.name} · 모아여행` : '모아여행 · 함께 모아 만드는 우리 여행';
   const y = scrollY;
-  $('#app').innerHTML = `<div class="shell ${r ? 'is-room' : 'is-home'}">${side(rt, r)}<div class="content">${topbar(r)}<main class="main" id="main">${r ? roomPage(r, rt.tab) : home()}</main></div>${r ? bnav(rt.tab) : ''}</div>`;
+  $('#app').innerHTML = `<div class="shell ${r ? 'is-room' : 'is-home'}">${side(rt, r)}<div class="content">${topbar(r)}<main class="main" id="main">${r ? roomPage(r, rt.tab) : home()}</main></div>${r ? bnav(rt.tab, r) : ''}</div>`;
   document.body.classList.toggle('is-home', !r);
   // 지도 다시 꽂기
   const slot = $('#map-slot');
@@ -686,7 +701,7 @@ function render() {
     else { mapCtl?.destroy(); mapCtl = createMap(r); slot.replaceWith(mapCtl.el); }
     if (mapCtl.kind) $('.map-src')?.replaceChildren(document.createTextNode(PNAME[mapCtl.kind]));
   }
-  if (r && rt.tab === 'chat') { const el = $('.msgs'); if (el) el.scrollTop = el.scrollHeight; }
+  if (r && rt.tab === 'chat') { const el = $('.msgs'); if (el) el.scrollTop = el.scrollHeight; markSeen(r); }
   if (r) hydratePhotos();
   scrollTo(0, y);
   if (r && !meId(r)) setTimeout(() => pickMe(r), 60);
@@ -719,12 +734,13 @@ function topbar(r) {
   if (!r) return `<header class="topbar">${brand()}<span class="sp"></span>${themeBtn('btn ghost icon')}</header>`;
   return `<header class="topbar"><button class="btn ghost icon" data-act="home" aria-label="내 여행으로">${I('back', 20)}</button><div class="title">${esc(r.name)}</div><button class="btn ghost icon" data-act="share" aria-label="초대·공유">${I('share', 20)}</button></header>`;
 }
-function bnav(tab) {
+function bnav(tab, r) {
   const inMore = !BNAV.includes(tab);
-  return `<nav class="bnav" aria-label="여행 메뉴">${BNAV.map((k) => { const t = TABS.find((x) => x.k === k); return `<button class="${tab === k ? 'on' : ''}" data-act="tab" data-k="${k}">${I(t.i, 22)}<span>${t.n.replace('모아둔 곳', '장소').replace('우리 일정', '일정')}</span></button>`; }).join('')}
+  return `<nav class="bnav" aria-label="여행 메뉴">${BNAV.map((k) => { const t = TABS.find((x) => x.k === k); return `<button class="${tab === k ? 'on' : ''}" data-act="tab" data-k="${k}">${I(t.i, 22)}${k === 'chat' && unread(r) ? '<i class="udot"></i>' : ''}<span>${t.n.replace('모아둔 곳', '장소').replace('우리 일정', '일정')}</span></button>`; }).join('')}
     <button class="${inMore ? 'on' : ''}" data-act="more">${I('grid', 22)}<span>더보기</span></button></nav>`;
 }
 function counts(r, k) {
+  if (k === 'chat') { const u = unread(r); if (u) return `<span class="cnt unread">${u > 99 ? '99+' : u}</span>`; }
   const n = { places: r.places.length, money: r.expenses.length, pack: r.checklist.filter((c) => !c.done).length, journal: r.journal.length, docs: (r.docs || []).length, chat: r.messages.filter((m) => !m.sys).length }[k];
   return n ? `<span class="cnt">${n}</span>` : '';
 }
@@ -803,6 +819,24 @@ function roomPage(r, tab) {
 }
 
 // ───── 대화 ─────
+const chatSeen = {}, newMsg = new Map();
+function markSeen(r) { chatSeen[r.id] = new Set(r.messages.map((m) => m.id)); S.seen = S.seen || {}; const last = r.messages.at(-1)?.at || 0; if ((S.seen[r.id] || 0) < last) { S.seen[r.id] = last; save(); } }
+const unread = (r) => r.messages.filter((m) => !m.sys && m.by !== meId(r) && m.at > (S.seen?.[r.id] || 0)).length;
+function refreshChat() {
+  const r = room(), box = $('.msgs'); if (!r || !box) return;
+  const near = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
+  const tmp = document.createElement('div'); tmp.innerHTML = chatTab(r);
+  box.innerHTML = $('.msgs', tmp).innerHTML; markSeen(r);
+  if (near) box.scrollTo({ top: box.scrollHeight, behavior: 'smooth' });
+}
+function notifyChat(r, fresh) {
+  if (route().id !== r.id) return;
+  if (route().tab === 'chat' && !document.hidden) return;
+  const m = fresh.at(-1);
+  toast(`💬 ${member(r, m.by).name}: ${m.text.slice(0, 40)}`, { label: '보기', fn() { go(`#/r/${r.id}/chat`); } });
+  $$('[data-k="chat"]').forEach((b) => { b.classList.remove('ping'); void b.offsetWidth; b.classList.add('ping'); });
+  if (navigator.vibrate) try { navigator.vibrate(30); } catch (e) { /* noop */ }
+}
 function chatTab(r) {
   const me = meId(r);
   let html = '', prev = null, prevDay = '';
@@ -812,7 +846,9 @@ function chatTab(r) {
     if (m.sys) { html += `<div class="sysmsg">${esc(m.text)}</div>`; prev = null; return; }
     const first = !prev || prev.by !== m.by || m.at - prev.at > 5 * 6e4;
     const w = member(r, m.by), mine = m.by === me;
-    html += `<div class="msg ${mine ? 'me' : ''} ${first ? 'first' : ''}">${mine ? '' : av(w, 30)}<div>${first && !mine ? `<div class="who">${esc(w.name)}</div>` : ''}<div class="bub">${esc(m.text)}</div></div><span class="t">${hm(m.at)}</span></div>`;
+    if (chatSeen[r.id] && !chatSeen[r.id].has(m.id) && !newMsg.has(m.id)) newMsg.set(m.id, Date.now());
+    const fresh = Date.now() - (newMsg.get(m.id) || 0) < 1500;
+    html += `<div class="msg ${mine ? 'me' : ''} ${first ? 'first' : ''} ${fresh ? 'new' : ''}">${mine ? '' : av(w, 30)}<div>${first && !mine ? `<div class="who">${esc(w.name)}</div>` : ''}<div class="bub">${esc(m.text)}</div></div><span class="t">${hm(m.at)}</span></div>`;
     prev = m;
   });
   return `<div class="sec"><div><h2>대화</h2><p>정할 것, 떠오른 생각을 가볍게 남겨요. 공유 링크를 주고받으면 함께 합쳐져요.</p></div></div>
@@ -1152,7 +1188,7 @@ function docsTab(r) {
   return `<div class="sec"><div><h2>티켓 · 서류</h2><p>항공권, 숙소 예약, 입장권 캡처를 한곳에. ${shared(r) ? '일행 모두가 함께 봐요.' : '함께 보는 여행방으로 열면 일행도 볼 수 있어요.'}</p></div>
     <div class="acts"><button class="btn pri" data-act="add-doc">${I('plus')}올리기</button></div></div>
   ${list.length ? `<div class="docs">${list.map((d) => { const k = dkind(d.kind), w = member(r, d.by); return `<button class="doc" data-act="open-doc" data-id="${d.id}">
-      <div class="doc-thumb">${d.photos?.[0] ? ph(d.photos[0], esc(d.title)) : `<span class="ill">${I('ticket', 28, 1.4)}</span>`}${d.photos?.length > 1 ? `<span class="more">+${d.photos.length - 1}</span>` : ''}</div>
+      <div class="doc-thumb">${d.photos?.[0] ? ph(d.photos[0], esc(d.title), false) : `<span class="ill">${I('ticket', 28, 1.4)}</span>`}${d.photos?.length > 1 ? `<span class="more">+${d.photos.length - 1}</span>` : ''}</div>
       <div class="doc-body"><div class="row" style="gap:6px"><span class="dot" style="--c:${k.c}"></span><span class="faint" style="font-size:12px">${k.n}</span>${d.day ? `<span class="sp"></span><span class="tag accent">${d.day}일차</span>` : ''}</div>
         <b>${esc(d.title)}</b>${d.note ? `<div class="faint ellip1">${esc(d.note)}</div>` : ''}<div class="row faint" style="gap:5px;font-size:12px;margin-top:2px">${av(w, 16)}${esc(w.name)}</div></div></button>`; }).join('')}</div>`
     : `<div class="card">${empty('ticket', '아직 올린 서류가 없어요', '예약 확인 화면이나 티켓을 캡처해서 올려두면, 현장에서 바로 꺼내 볼 수 있어요.', `<button class="btn pri" data-act="add-doc">${I('plus')}첫 서류 올리기</button>`)}</div>`}
@@ -1174,8 +1210,11 @@ function docModal(r) {
       toast(shared(r) ? '올리는 중…' : '저장하는 중…');
       Promise.all(files.map((x) => shrink(x, 1600, 0.82))).then((l) => uploadPhotos(r, l.filter(Boolean))).then((photos) => {
         const d = { id: uid(), title: fd.get('title').trim(), kind: fd.get('kind'), day: +fd.get('day') || null, note: fd.get('note').trim(), photos, by: meId(r), at: now() };
-        r.docs.push(d); touch(r, d); render(); toast('보관함에 넣었어요');
-      });
+        if (!photos.length) return toast('사진을 읽지 못했어요. 다른 사진으로 다시 올려주세요.');
+        r.docs.push(d); d.upd = now(); r.updatedAt = d.upd;
+        if (!save()) { r.docs.pop(); return render(); }
+        queuePush(r); go(`#/r/${r.id}/docs`); render(); toast(shared(r) ? '보관함에 넣었어요. 일행도 볼 수 있어요' : '보관함에 넣었어요');
+      }).catch((e) => toast(e.message || '올리지 못했어요'));
     },
   });
 }
@@ -1232,10 +1271,14 @@ function shrink(file, max = 900, q = 0.75) {
     img.onload = () => {
       const s = Math.min(1, max / Math.max(img.width, img.height));
       const c = document.createElement('canvas'); c.width = img.width * s; c.height = img.height * s;
-      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
-      res(c.toDataURL('image/jpeg', q));
+      const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      // 서버 한도(약 900KB) 안에 들어오도록 화질 → 크기 순으로 줄여요
+      let out = c.toDataURL('image/jpeg', q), qq = q;
+      while (out.length > 880000 && qq > 0.5) { qq -= 0.1; out = c.toDataURL('image/jpeg', qq); }
+      while (out.length > 880000 && c.width > 400) { const t = document.createElement('canvas'); t.width = c.width * 0.8; t.height = c.height * 0.8; t.getContext('2d').drawImage(c, 0, 0, t.width, t.height); c.width = t.width; c.height = t.height; c.getContext('2d').drawImage(t, 0, 0); out = c.toDataURL('image/jpeg', qq); }
+      res(out);
     };
-    img.onerror = () => res('');
+    img.onerror = () => { URL.revokeObjectURL(url); toast('열 수 없는 사진 형식이에요. JPG·PNG로 바꿔 올려주세요.'); res(''); };
     img.src = url;
   });
 }
@@ -1396,7 +1439,7 @@ function importModal() {
       const file = f.file.files[0], link = f.link.value.trim();
       if (file) {
         file.text().then((t) => {
-          try { const inc = JSON.parse(t); if (!inc.id || !inc.members) throw 0; S.rooms[inc.id] = S.rooms[inc.id] ? mergeRoom(S.rooms[inc.id], inc) : inc; save(); toast('가져왔어요'); go(`#/r/${inc.id}/places`); } catch (e) { toast('모아여행 파일이 아니에요'); }
+          try { const inc = cleanRoom(JSON.parse(t)); if (!inc.id || !inc.members) throw 0; S.rooms[inc.id] = S.rooms[inc.id] ? mergeRoom(S.rooms[inc.id], inc) : inc; save(); toast('가져왔어요'); go(`#/r/${inc.id}/places`); } catch (e) { toast('모아여행 파일이 아니에요'); }
         });
       } else if (link.includes('#join=')) location.hash = 'join=' + link.split('#join=')[1];
       else { toast('링크나 파일을 넣어주세요'); return false; }
