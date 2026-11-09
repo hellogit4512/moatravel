@@ -521,3 +521,24 @@ h3{margin:0;font-size:16px;font-weight:700;letter-spacing:-.015em}
   .main:has(.places-layout.stack) .sec:first-of-type>div>p{display:none}
   .main:has(.places-layout.stack) .sec:first-of-type{margin-top:18px}
 }
+
+/* 날짜·여행지 미정 */
+.datefields .when-undated{display:none}
+.datefields.nodate .when-dated{display:none}
+.datefields.nodate .when-undated{display:flex}
+.decide{padding:18px 20px;margin-bottom:8px;border-color:color-mix(in srgb,var(--accent) 35%,var(--line));background:linear-gradient(160deg,var(--accent-soft),var(--surface) 60%)}
+.decide-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.decide-h .i{color:var(--accent)}
+.decide-h .faint{font-size:13px;flex-basis:100%}
+.decide-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px}
+.decide-col h3{margin:0;font-size:16px}
+.decide-col>p{margin:4px 0 10px;font-size:13px}
+.opts{display:flex;flex-direction:column;gap:8px}
+.opt{display:flex;align-items:center;gap:6px;padding:10px 10px 10px 14px;border-radius:12px;background:var(--surface);border:1px solid var(--line)}
+.opt.top{border-color:var(--accent)}
+.opt b{font-size:15px}
+.opt-votes{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:12px}
+.opt-votes .avs{display:flex}
+.opt-votes .avs .av+.av{margin-left:-6px}
+.opt .btn.sm{height:32px;padding:0 10px;flex:none}
+@media (max-width:760px){.decide{padding:16px 14px}.opt{flex-wrap:wrap}.opt .grow{flex-basis:100%}}

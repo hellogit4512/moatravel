@@ -27,6 +27,7 @@ const KR = /한국|대한민국|국내|서울|부산|제주|강릉|속초|양양
 
 // ───────── 아이콘 ─────────
 const ICONS = {
+  spark: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
   bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   chat: '<path d="M20.5 11.5a8.5 8.5 0 0 1-12.3 7.6L3.5 20.5l1.4-4.4A8.5 8.5 0 1 1 20.5 11.5z"/>',
   pin: '<path d="M12 21s-6.5-5.8-6.5-11a6.5 6.5 0 0 1 13 0c0 5.2-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
@@ -97,10 +98,15 @@ const pad = (n) => String(n).padStart(2, '0');
 const isoDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const addDays = (iso, n) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return d; };
 const WD = '일월화수목금토';
-const dayLabel = (r, n) => { const d = addDays(r.start, n - 1); return `${d.getMonth() + 1}.${pad(d.getDate())} ${WD[d.getDay()]}`; };
-const dayCount = (r) => Math.min(30, Math.max(1, Math.round((new Date(r.end) - new Date(r.start)) / 864e5) + 1 || 1));
-const range = (r) => `${+r.start.slice(5, 7)}.${r.start.slice(8)} – ${+r.end.slice(5, 7)}.${r.end.slice(8)}`;
-const nights = (r) => { const d = dayCount(r); return d === 1 ? '당일' : `${d - 1}박 ${d}일`; };
+// 날짜를 아직 안 정한 여행: start/end 가 비어 있고 days(예상 일수)만 있어요
+const undated = (r) => !r.start || !r.end;
+const dayLabel = (r, n) => { if (undated(r)) return ''; const d = addDays(r.start, n - 1); return `${d.getMonth() + 1}.${pad(d.getDate())} ${WD[d.getDay()]}`; };
+const dl = (r, n) => (undated(r) ? '' : ` · ${dayLabel(r, n)}`);
+const dayCount = (r) => (undated(r) ? Math.min(30, Math.max(1, +r.days || 3)) : Math.min(30, Math.max(1, Math.round((new Date(r.end) - new Date(r.start)) / 864e5) + 1 || 1)));
+const fmtRange = (a, b) => `${+a.slice(5, 7)}.${a.slice(8)} – ${+b.slice(5, 7)}.${b.slice(8)}`;
+const range = (r) => (undated(r) ? '날짜 미정' : fmtRange(r.start, r.end));
+const nights = (r) => { const d = dayCount(r); return (d === 1 ? '당일' : `${d - 1}박 ${d}일`) + (undated(r) ? ' 예정' : ''); };
+const destName = (r) => r.dest || '어디로?';
 const hash = (s) => [...String(s)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
 const tone = (r) => TONES[r.tone ?? hash(r.id) % TONES.length];
 const toneStyle = (r) => `--tone:${tone(r)[0]};--tone-fg:${tone(r)[1]}`;
@@ -114,6 +120,7 @@ function timeAgo(t) {
 }
 const hm = (t) => { const d = new Date(t); return `${d.getHours() < 12 ? '오전' : '오후'} ${d.getHours() % 12 || 12}:${pad(d.getMinutes())}`; };
 function dday(r) {
+  if (undated(r)) return '날짜 미정';
   const today = new Date(isoDate(new Date()) + 'T00:00:00');
   const s = new Date(r.start + 'T00:00:00'), e = new Date(r.end + 'T00:00:00');
   const diff = Math.round((s - today) / 864e5);
@@ -604,7 +611,7 @@ function mergeRoom(a, b) {
   const del = { ...(a.del || {}), ...(b.del || {}) };
   const out = { ...((b.updatedAt || 0) > (a.updatedAt || 0) ? b : a), del };
   const photos = {}; (a.journal || []).forEach((j) => (photos[j.id] = j.photos));
-  for (const k of ['members', 'places', 'messages', 'expenses', 'checklist', 'journal', 'docs']) {
+  for (const k of ['members', 'places', 'messages', 'expenses', 'checklist', 'journal', 'docs', 'dateOpts', 'destOpts']) {
     const m = new Map();
     [...(a[k] || []), ...(b[k] || [])].forEach((x) => { const c = m.get(x.id); if (!c || (x.upd || x.at || 0) >= (c.upd || c.at || 0)) m.set(x.id, x); });
     out[k] = [...m.values()].filter((x) => !del[x.id]);
@@ -624,7 +631,7 @@ function cleanVal(v, k) {
   if (v && typeof v === 'object') { const o = {}; for (const [kk, vv] of Object.entries(v)) if (!/^__|^constructor$|^prototype$/.test(kk)) o[cleanVal(kk, 'key')] = cleanVal(vv, kk); return o; }
   return typeof v === 'boolean' || v === null ? v : null;
 }
-const cleanRoom = (r) => { const o = cleanVal(r, 'room'); ['members', 'places', 'messages', 'expenses', 'checklist', 'journal', 'docs'].forEach((k) => { o[k] = (Array.isArray(o[k]) ? o[k] : []).filter((x) => x && typeof x.id === 'string' && x.id); }); return o; };
+const cleanRoom = (r) => { const o = cleanVal(r, 'room'); ['members', 'places', 'messages', 'expenses', 'checklist', 'journal', 'docs', 'dateOpts', 'destOpts'].forEach((k) => { o[k] = (Array.isArray(o[k]) ? o[k] : []).filter((x) => x && typeof x.id === 'string' && x.id); }); return o; };
 async function checkJoin() {
   const sm = location.hash.match(/^#s=([a-z0-9]{6,24})\.([A-Za-z0-9_-]{20,64})$/);
   if (sm) {
@@ -762,7 +769,7 @@ function empty(icon, title, desc, btn = '') {
 function home() {
   const rooms = Object.values(S.rooms).sort((a, b) => b.updatedAt - a.updatedAt);
   const today = isoDate(new Date());
-  const next = rooms.filter((x) => !x.demo && x.end >= today).sort((a, b) => a.start.localeCompare(b.start))[0];
+  const next = rooms.filter((x) => !x.demo && !undated(x) && x.end >= today).sort((a, b) => a.start.localeCompare(b.start))[0];
   return `
   <section class="hero">
     <div>
@@ -800,7 +807,7 @@ function previewCard(cn, cc, who, wc, name, memo, hearts, day) {
 }
 function tripCard(x) {
   return `<button class="trip" data-act="open" data-id="${x.id}">
-    <div class="cover" style="${toneStyle(x)}"><span class="badge">${x.demo ? '예시' : dday(x)}</span><div class="dest">${esc(x.dest)}</div></div>
+    <div class="cover" style="${toneStyle(x)}"><span class="badge">${x.demo ? '예시' : dday(x)}</span><div class="dest">${esc(destName(x))}</div></div>
     <div class="trip-body">
       <h3>${esc(x.name)}</h3>
       <div class="meta">${range(x)} · ${nights(x)}</div>
@@ -813,7 +820,7 @@ function roomPage(r, tab) {
   const me = meId(r) ? member(r, meId(r)) : null;
   return `
   <section class="trip-head">
-    <div class="cover" style="${toneStyle(r)}"><div class="dest">${esc(r.dest)}</div></div>
+    <div class="cover" style="${toneStyle(r)}"><div class="dest">${esc(destName(r))}</div></div>
     <div class="grow">
       <div class="kicker">${range(r)} · ${nights(r)}</div>
       <h1>${esc(r.name)}</h1>
@@ -825,6 +832,7 @@ function roomPage(r, tab) {
     </div>
   </section>
   ${r.demo ? `<div class="notice"><span><b>예시 여행방</b>이에요. 마음껏 눌러보세요 — 변경은 이 기기에만 저장돼요.</span><span class="sp"></span><button class="btn sm" data-act="fork-demo">이 내용으로 내 여행 만들기</button><button class="btn sm ghost" data-act="reset-demo">처음으로</button></div>` : ''}
+  ${(tab === 'places' || tab === 'plan') && !(shared(r) && S.sync[r.id].needPass) ? decideCard(r) : ''}
   ${shared(r) && S.sync[r.id].needPass ? passGate(r) : ({ chat: chatTab, places: placesTab, plan: planTab, money: moneyTab, pack: packTab, journal: journalTab, docs: docsTab, room: settingsTab })[tab](r)}`;
 }
 
@@ -1087,7 +1095,7 @@ function planText(r) {
   let t = `✈️ ${r.name}\n📍 ${r.dest} · ${range(r)} (${nights(r)})\n`;
   for (let d = 1; d <= dayCount(r); d++) {
     const items = dayItems(r, d);
-    t += `\n[${d}일차 · ${dayLabel(r, d)}]\n` + (items.map((p, i) => `${i + 1}. ${p.time ? p.time + ' ' : ''}${p.name}`).join('\n') || '- 아직 미정');
+    t += `\n[${d}일차${dl(r, d)}]\n` + (items.map((p, i) => `${i + 1}. ${p.time ? p.time + ' ' : ''}${p.name}`).join('\n') || '- 아직 미정');
   }
   const pend = dayItems(r, 0);
   if (pend.length) t += `\n\n💭 후보: ${pend.map((p) => p.name).join(', ')}`;
@@ -1099,7 +1107,7 @@ function planText(r) {
 function expDay(r, e) { const d = +e.day || +(e.pid && r.places.find((p) => p.id === e.pid)?.day) || 0; return d >= 1 && d <= dayCount(r) ? d : 0; }
 const daySpent = (r, d) => r.expenses.filter((e) => expDay(r, e) === d).reduce((s, e) => s + e.amount, 0);
 const placeSpent = (r, pid) => r.expenses.filter((e) => e.pid === pid).reduce((s, e) => s + e.amount, 0);
-function tripToday(r) { const d = Math.round((new Date(isoDate(new Date())) - new Date(r.start)) / 864e5) + 1; return d >= 1 && d <= dayCount(r) ? d : 0; }
+function tripToday(r) { if (undated(r)) return 0; const d = Math.round((new Date(isoDate(new Date())) - new Date(r.start)) / 864e5) + 1; return d >= 1 && d <= dayCount(r) ? d : 0; }
 function expRow(r, e) {
   const pl = e.pid && r.places.find((p) => p.id === e.pid);
   return `<button class="r" data-act="edit-exp" data-id="${e.id}"><span class="dot" style="--c:${ecat(e.cat).c}"></span><div class="grow"><b>${esc(e.title)}</b>${e.photos?.length ? ` <span class="faint" title="영수증 ${e.photos.length}장" style="display:inline-flex;vertical-align:-3px">${I('clip', 15)}</span>` : ''}<div class="faint" style="font-size:12px">${ecat(e.cat).n}${pl ? ` · ${I('pin', 11)} ${esc(pl.name)}` : ''} · ${esc(member(r, e.payer).name)} 결제 · ${e.split.length}명</div></div><div style="text-align:right"><div class="amt">${won(e.amount)}</div><div class="faint num" style="font-size:12px">1인 ${won(e.amount / Math.max(1, e.split.length))}</div></div></button>`;
@@ -1173,7 +1181,7 @@ function expModal(r, e, pre = {}) {
       <div class="faint per" style="font-size:13px;margin-top:-8px"></div>
       <label class="field"><span>무엇에 썼나요</span><input type="text" name="title" required maxlength="60" value="${esc(e.title)}" placeholder="예: 흑돼지 저녁"></label>
       <div class="field"><span>분류</span><div class="chips" style="flex-wrap:wrap">${ECATS.map((c) => `<label class="chip ${e.cat === c.k ? 'on' : ''}"><input type="radio" name="cat" value="${c.k}" ${e.cat === c.k ? 'checked' : ''}><span class="dot" style="--c:${c.c}"></span>${c.n}</label>`).join('')}</div></div>
-      <div class="grid2"><label class="field"><span>언제</span><select name="day"><option value="0">여행 전 · 공통</option>${Array.from({ length: dayCount(r) }, (_, i) => `<option value="${i + 1}" ${curDay === i + 1 ? 'selected' : ''}>${i + 1}일차 · ${dayLabel(r, i + 1)}</option>`).join('')}</select></label>
+      <div class="grid2"><label class="field"><span>언제</span><select name="day"><option value="0">여행 전 · 공통</option>${Array.from({ length: dayCount(r) }, (_, i) => `<option value="${i + 1}" ${curDay === i + 1 ? 'selected' : ''}>${i + 1}일차${dl(r, i + 1)}</option>`).join('')}</select></label>
         <label class="field"><span>어디서 <small>· 선택</small></span><select name="pid"><option value="">장소 없음</option>${planned.map((p) => `<option value="${p.id}" data-d="${p.day}" ${e.pid === p.id ? 'selected' : ''}>${p.day}일차 · ${esc(p.name)}</option>`).join('')}</select></label></div>
       <div class="field"><span>누가 냈나요</span><div class="chips" style="flex-wrap:wrap">${r.members.map((m) => `<label class="chip ${e.payer === m.id ? 'on' : ''}"><input type="radio" name="payer" value="${m.id}" ${e.payer === m.id ? 'checked' : ''}>${esc(m.name)}</label>`).join('')}</div></div>
       <div class="field"><span>누구와 나누나요</span><div class="chips" style="flex-wrap:wrap">${r.members.map((m) => `<label class="chip ${e.split.includes(m.id) ? 'on' : ''}"><input type="checkbox" name="split" value="${m.id}" ${e.split.includes(m.id) ? 'checked' : ''}>${esc(m.name)}</label>`).join('')}</div></div>
@@ -1251,7 +1259,7 @@ function docModal(r) {
     body: `<label class="field"><span>사진 <small>· 캡처 화면도 좋아요, 최대 6장</small></span><input type="file" name="files" accept="image/*" multiple required style="height:auto;padding:10px"></label>
       <label class="field"><span>이름</span><input type="text" name="title" required maxlength="60" placeholder="예: 제주항공 왕복 e티켓"></label>
       <div class="field"><span>종류</span><div class="chips" style="flex-wrap:wrap">${DKINDS.map((k, i) => `<label class="chip ${i === 0 ? 'on' : ''}"><input type="radio" name="kind" value="${k.k}" ${i === 0 ? 'checked' : ''}><span class="dot" style="--c:${k.c}"></span>${k.n}</label>`).join('')}</div></div>
-      <label class="field"><span>언제 쓰나요 <small>· 선택</small></span><select name="day"><option value="">날짜 없음</option>${Array.from({ length: dayCount(r) }, (_, i) => `<option value="${i + 1}">${i + 1}일차 · ${dayLabel(r, i + 1)}</option>`).join('')}</select></label>
+      <label class="field"><span>언제 쓰나요 <small>· 선택</small></span><select name="day"><option value="">날짜 없음</option>${Array.from({ length: dayCount(r) }, (_, i) => `<option value="${i + 1}">${i + 1}일차${dl(r, i + 1)}</option>`).join('')}</select></label>
       <label class="field"><span>메모 <small>· 예약번호, 체크인 시간 등</small></span><textarea name="note" maxlength="300" style="min-height:70px"></textarea></label>`,
     ok: '올리기',
     onOk(f) {
@@ -1272,7 +1280,7 @@ function docView(r, d) {
   const k = dkind(d.kind);
   const f = openModal({
     title: esc(d.title),
-    body: `<div class="row wrap" style="gap:8px"><span class="tag"><span class="dot" style="--c:${k.c}"></span>${k.n}</span>${d.day ? `<span class="tag accent">${d.day}일차 · ${dayLabel(r, d.day)}</span>` : ''}<span class="faint" style="font-size:12px">${esc(member(r, d.by).name)} · ${timeAgo(d.at)}</span></div>
+    body: `<div class="row wrap" style="gap:8px"><span class="tag"><span class="dot" style="--c:${k.c}"></span>${k.n}</span>${d.day ? `<span class="tag accent">${d.day}일차${dl(r, d.day)}</span>` : ''}<span class="faint" style="font-size:12px">${esc(member(r, d.by).name)} · ${timeAgo(d.at)}</span></div>
       ${d.note ? `<p style="margin:0;white-space:pre-wrap">${esc(d.note)}</p>` : ''}
       <div class="doc-full">${(d.photos || []).map((x) => ph(x, esc(d.title))).join('') || '<p class="faint">사진이 없어요</p>'}</div>
       <button type="button" class="btn sm ghost danger" data-del style="align-self:flex-start">${I('trash', 15)}삭제</button>`,
@@ -1296,10 +1304,10 @@ function journalTab(r) {
 }
 function entryModal(r) {
   const today = isoDate(new Date());
-  const cur = Math.min(dayCount(r), Math.max(1, Math.round((new Date(today) - new Date(r.start)) / 864e5) + 1));
+  const cur = undated(r) ? 1 : Math.min(dayCount(r), Math.max(1, Math.round((new Date(today) - new Date(r.start)) / 864e5) + 1));
   openModal({
     title: '오늘의 기록',
-    body: `<label class="field"><span>날짜</span><select name="day">${Array.from({ length: dayCount(r) }, (_, i) => `<option value="${i + 1}" ${i + 1 === cur ? 'selected' : ''}>${i + 1}일차 · ${dayLabel(r, i + 1)}</option>`).join('')}</select></label>
+    body: `<label class="field"><span>날짜</span><select name="day">${Array.from({ length: dayCount(r) }, (_, i) => `<option value="${i + 1}" ${i + 1 === cur ? 'selected' : ''}>${i + 1}일차${dl(r, i + 1)}</option>`).join('')}</select></label>
       <div class="field"><span>오늘의 기분</span><div class="chips">${MOODS.map((m, i) => `<label class="chip ${i === 0 ? 'on' : ''}" style="font-size:20px;height:42px;padding:0 12px"><input type="radio" name="mood" value="${m}" ${i === 0 ? 'checked' : ''}>${m}</label>`).join('')}</div></div>
       <label class="field"><span>어땠나요</span><textarea name="text" required maxlength="1000" placeholder="오늘 가장 좋았던 순간은?"></textarea></label>
       <label class="field"><span>사진 <small>· 최대 4장</small></span><input type="file" name="photos" accept="image/*" multiple style="height:auto;padding:10px"></label>`,
@@ -1340,8 +1348,8 @@ function settingsTab(r) {
   <div class="group-title">기본 정보</div>
   <form class="group" data-form="room" style="padding:18px;display:flex;flex-direction:column;gap:14px">
     <label class="field"><span>여행 이름</span><input type="text" name="name" required maxlength="40" value="${esc(r.name)}"></label>
-    <label class="field"><span>여행지</span><input type="text" name="dest" maxlength="30" value="${esc(r.dest)}"></label>
-    <div class="grid2"><label class="field"><span>출발</span><input type="date" name="start" required value="${r.start}"></label><label class="field"><span>도착</span><input type="date" name="end" required value="${r.end}"></label></div>
+    <label class="field"><span>여행지 <small>· 비워두면 '아직 정하는 중'</small></span><input type="text" name="dest" maxlength="30" value="${esc(r.dest)}"></label>
+    ${dateFields(r.start || isoDate(addDays(isoDate(new Date()), 14)), r.end || isoDate(addDays(isoDate(new Date()), 16)), undated(r), dayCount(r))}
     <div class="field"><span>커버 색</span><div class="tones">${TONES.map((t, i) => `<label class="tone ${tone(r) === t ? 'on' : ''}" style="--tone:${t[0]}"><input type="radio" name="tone" value="${i}" ${tone(r) === t ? 'checked' : ''} aria-label="색 ${i + 1}"></label>`).join('')}</div></div>
     <div><button class="btn pri">저장</button></div>
   </form>
@@ -1390,24 +1398,72 @@ function keysModal() {
 }
 
 // ───── 공통 모달들 ─────
+function dateFields(start, end, nodate, days) {
+  return `<div class="field datefields ${nodate ? 'nodate' : ''}"><div class="row" style="justify-content:space-between"><span>언제 가나요?</span>
+      <label class="chip ${nodate ? 'on' : ''}" style="height:30px"><input type="checkbox" name="nodate" ${nodate ? 'checked' : ''} data-nodate>아직 몰라요</label></div>
+    <div class="grid2 when-dated"><label class="field"><span>출발</span><input type="date" name="start" ${nodate ? '' : 'required'} value="${start}"></label><label class="field"><span>도착</span><input type="date" name="end" ${nodate ? '' : 'required'} value="${end}"></label></div>
+    <label class="field when-undated"><span>며칠 정도 생각해요? <small>· 일정은 1일차, 2일차로 먼저 짜둘 수 있어요</small></span><select name="days">${Array.from({ length: 10 }, (_, i) => `<option value="${i + 1}" ${+days === i + 1 ? 'selected' : ''}>${i ? `${i}박 ${i + 1}일` : '당일'}</option>`).join('')}</select></label></div>`;
+}
+document.addEventListener('change', (ev) => {
+  const c = ev.target.closest?.('[data-nodate]'); if (!c) return;
+  const box = c.closest('.datefields'); box.classList.toggle('nodate', c.checked); c.parentElement.classList.toggle('on', c.checked);
+  $$('.when-dated input', box).forEach((x) => (x.required = !c.checked));
+});
+// 함께 정하기: 날짜·여행지 후보에 "좋아요/가능해요" 표시하고 확정
+function decideCard(r) {
+  const needDate = undated(r), needDest = !r.dest;
+  if (!needDate && !needDest) return '';
+  const me = meId(r);
+  const opts = (k) => (r[k] || []).slice().sort((a, b) => (b.votes || []).length - (a.votes || []).length || a.at - b.at);
+  const row = (k, o, label, sub) => { const v = o.votes || [], on = v.includes(me), top = v.length && v.length === Math.max(...(r[k] || []).map((x) => (x.votes || []).length));
+    return `<div class="opt ${top ? 'top' : ''}"><div class="grow"><b>${label}</b>${sub ? `<span class="faint"> ${sub}</span>` : ''}
+      <div class="opt-votes">${v.length ? `<span class="avs">${v.map((id) => av(member(r, id), 20)).join('')}</span><span class="faint">${v.length}명</span>` : '<span class="faint">아직 아무도</span>'}</div></div>
+      <button class="btn sm ${on ? 'pri' : ''}" data-act="vote-opt" data-k="${k}" data-id="${o.id}" aria-pressed="${on}">${on ? I('check', 14, 2.4) : ''}${k === 'dateOpts' ? '가능해요' : '좋아요'}</button>
+      <button class="btn sm ghost" data-act="pick-opt" data-k="${k}" data-id="${o.id}" title="이걸로 확정">확정</button>
+      ${o.by === me ? `<button class="btn ghost icon sm" data-act="del-opt" data-k="${k}" data-id="${o.id}" aria-label="후보 지우기">${I('x', 14)}</button>` : ''}</div>`; };
+  const col = (k, title, hint, list, add) => `<div class="decide-col"><div class="row"><h3>${title}</h3><span class="sp"></span></div><p class="faint">${hint}</p>
+    ${list.length ? `<div class="opts">${list}</div>` : ''}${add}</div>`;
+  const dates = opts('dateOpts').map((o) => { const d = Math.round((new Date(o.end) - new Date(o.start)) / 864e5); return row('dateOpts', o, fmtRange(o.start, o.end), `${WD[addDays(o.start, 0).getDay()]}–${WD[addDays(o.end, 0).getDay()]} · ${d ? `${d}박 ${d + 1}일` : '당일'}`); }).join('');
+  const dests = opts('destOpts').map((o) => row('destOpts', o, esc(o.name), o.note ? esc(o.note) : '')).join('');
+  return `<section class="card decide"><div class="decide-h">${I('spark', 18)}<b>아직 정하는 중이에요</b><span class="faint">후보를 올리고, 되는 날·가고 싶은 곳에 표시해요. 표가 모이면 확정!</span></div>
+    <div class="decide-g">
+      ${needDest ? col('destOpts', '어디로 갈까?', '가고 싶은 곳을 후보로 올려요.', dests, `<form class="row" data-form="destopt" style="margin-top:10px"><input type="text" name="t" maxlength="30" placeholder="예: 강릉, 오사카" class="grow" aria-label="여행지 후보"><button class="btn sm">${I('plus', 14)}후보</button></form>`) : ''}
+      ${needDate ? col('dateOpts', '언제 갈까?', `${nights({ ...r, start: '', end: '' }).replace(' 예정', '')} 정도로 생각 중이에요. 되는 날짜를 후보로 올려요.`, dates, `<button class="btn sm" data-act="add-date-opt" style="margin-top:10px">${I('plus', 14)}날짜 후보 추가</button>`) : ''}
+    </div></section>`;
+}
+function dateOptModal(r) {
+  const s = isoDate(addDays(isoDate(new Date()), 14));
+  openModal({
+    title: '날짜 후보 추가',
+    body: `<div class="grid2"><label class="field"><span>출발</span><input type="date" name="start" required value="${s}"></label><label class="field"><span>도착</span><input type="date" name="end" required value="${isoDate(addDays(s, dayCount(r) - 1))}"></label></div>
+      <p class="faint" style="margin:0;font-size:13px">올리면 나도 '가능해요'로 표시돼요.</p>`,
+    ok: '후보 올리기',
+    onOk(f) {
+      if (f.end.value < f.start.value) { toast('도착일이 출발일보다 빨라요'); return false; }
+      const o = { id: uid(), start: f.start.value, end: f.end.value, by: meId(r), votes: [meId(r)], at: now() };
+      (r.dateOpts ||= []).push(o); sysMsg(r, `${member(r, meId(r)).name}님이 날짜 후보 ${fmtRange(o.start, o.end)}을(를) 올렸어요`); touch(r, o); render();
+    },
+  });
+}
 function roomModal() {
   const s = isoDate(addDays(isoDate(new Date()), 14));
   const t0 = Math.floor(Math.random() * TONES.length);
   openModal({
     title: '새 여행 만들기',
-    body: `<label class="field"><span>어디로 가나요?</span><input type="text" name="dest" required maxlength="30" placeholder="제주, 오사카, 강릉…"></label>
+    body: `<label class="field"><span>어디로 가나요? <small>· 아직 모르면 비워두세요, 같이 정할 수 있어요</small></span><input type="text" name="dest" maxlength="30" placeholder="제주, 오사카, 강릉…"></label>
       <label class="field"><span>여행 이름</span><input type="text" name="name" maxlength="40" placeholder="비워두면 '우리의 ○○ 여행'"></label>
-      <div class="grid2"><label class="field"><span>출발</span><input type="date" name="start" required value="${s}"></label><label class="field"><span>도착</span><input type="date" name="end" required value="${isoDate(addDays(s, 2))}"></label></div>
+      ${dateFields(s, isoDate(addDays(s, 2)), false, 3)}
       <div class="field"><span>커버 색</span><div class="tones">${TONES.map((t, i) => `<label class="tone ${i === t0 ? 'on' : ''}" style="--tone:${t[0]}"><input type="radio" name="tone" value="${i}" ${i === t0 ? 'checked' : ''} aria-label="색 ${i + 1}"></label>`).join('')}</div></div>
       <label class="field"><span>내 이름</span><input type="text" name="me" required maxlength="12" placeholder="친구들이 부르는 이름"></label>
       <label class="field"><span>함께 가는 사람 <small>· 쉼표로 구분, 나중에 추가해도 돼요</small></span><input type="text" name="others" placeholder="유진, 민수, 지우"></label>`,
     ok: '여행방 만들기',
     onOk(f) {
-      const d = Object.fromEntries(new FormData(f));
-      if (d.end < d.start) { toast('도착일이 출발일보다 빨라요'); return false; }
+      const d = Object.fromEntries(new FormData(f)), nodate = !!d.nodate;
+      if (!nodate && d.end < d.start) { toast('도착일이 출발일보다 빨라요'); return false; }
       const others = d.others.split(/[,，、\n]/).map((x) => x.trim()).filter(Boolean);
       const dest = d.dest.trim();
-      const r = newRoom({ name: d.name.trim() || `우리의 ${dest} 여행`, dest, start: d.start, end: d.end, members: [d.me.trim(), ...others], tone: +d.tone });
+      const r = newRoom({ name: d.name.trim() || (dest ? `우리의 ${dest} 여행` : '우리의 다음 여행'), dest, start: nodate ? '' : d.start, end: nodate ? '' : d.end, members: [d.me.trim(), ...others], tone: +d.tone });
+      if (nodate) r.days = +d.days || 3;
       sysMsg(r, `${d.me.trim()}님이 여행방을 만들었어요`);
       S.rooms[r.id] = r; S.me[r.id] = r.members[0].id; save();
       go(`#/r/${r.id}/places`); setTimeout(() => shareModal(r, true), 250);
@@ -1577,6 +1633,17 @@ document.addEventListener('click', (ev) => {
       if (ui.planDay) $(`#day-${ui.planDay}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     },
     'plan-map': () => { ui.planMap = !ui.planMap; render(); },
+    'add-date-opt': () => dateOptModal(r),
+    'vote-opt': () => { const o = (r[el.dataset.k] || []).find((x) => x.id === el.dataset.id); if (!o) return; const me = meId(r); o.votes = o.votes || []; const i = o.votes.indexOf(me); if (i >= 0) o.votes.splice(i, 1); else o.votes.push(me); touch(r, o); render(); },
+    'del-opt': () => removeUndo(r, el.dataset.k, el.dataset.id, '후보를'),
+    'pick-opt': async () => {
+      const k = el.dataset.k, o = (r[k] || []).find((x) => x.id === el.dataset.id); if (!o) return;
+      const label = k === 'dateOpts' ? fmtRange(o.start, o.end) : o.name;
+      if (!(await confirmBox({ title: '이걸로 확정할까요?', msg: `${esc(label)}(으)로 정해요. 일행 모두에게 보여요. 나중에 여행방 설정에서 바꿀 수 있어요.`, ok: '확정하기' }))) return;
+      if (k === 'dateOpts') { r.start = o.start; r.end = o.end; const n = dayCount(r); r.places.forEach((p) => { if (p.day > n) p.day = null; }); }
+      else { const pv0 = provider(r); if (r.name === '우리의 다음 여행') r.name = `우리의 ${o.name} 여행`; r.dest = o.name; if (provider(r) !== pv0) { mapCtl?.destroy(); mapCtl = null; } }
+      sysMsg(r, `${member(r, meId(r)).name}님이 ${k === 'dateOpts' ? '날짜를' : '여행지를'} ${label}(으)로 확정했어요 🎉`); touch(r); render(); toast('확정했어요');
+    },
     locate: () => {
       if (!isWide() && ui.view !== 'map') { ui.view = 'map'; render(); }
       selPlace(el.dataset.id);
@@ -1645,15 +1712,16 @@ document.addEventListener('submit', (ev) => {
     joinShared(r.id, s.key, t).then(() => { render(); toast('다시 연결했어요'); }).catch((e) => toast(e.message));
     return;
   }
+  if (kind === 'destopt' && t) { const o = { id: uid(), name: t.slice(0, 30), by: meId(r), votes: [meId(r)], at: now() }; (r.destOpts ||= []).push(o); sysMsg(r, `${member(r, meId(r)).name}님이 여행지 후보 '${o.name}'을(를) 올렸어요`); touch(r, o); render(); return; }
   if (kind === 'chat' && t) { r.messages.push({ id: uid(), by: meId(r), text: t, at: now(), upd: now() }); touch(r); render(); $('.composer input')?.focus(); }
   if (kind === 'cmt' && t) { const p = r.places.find((x) => x.id === f.dataset.id); p.comments.push({ id: uid(), by: meId(r), text: t, at: now() }); touch(r, p); render(); $(`[data-form=cmt][data-id="${p.id}"] input`)?.focus({ preventScroll: true }); }
   if (kind === 'pack' && t) { const c = { id: uid(), text: t, who: f.who.value || null, done: false }; r.checklist.push(c); touch(r, c); render(); $('[data-form=pack] input')?.focus(); }
   if (kind === 'member' && t) { const m = { id: uid(), name: t.slice(0, 12), color: COLORS[r.members.length % COLORS.length] }; r.members.push(m); sysMsg(r, `${t}님이 일행에 추가됐어요`); touch(r, m); render(); }
   if (kind === 'room') {
-    const d = Object.fromEntries(new FormData(f));
-    if (d.end < d.start) return toast('도착일이 출발일보다 빨라요');
+    const d = Object.fromEntries(new FormData(f)), nodate = !!d.nodate;
+    if (!nodate && d.end < d.start) return toast('도착일이 출발일보다 빨라요');
     const pv0 = provider(r);
-    Object.assign(r, { name: d.name.trim(), dest: d.dest.trim(), start: d.start, end: d.end, tone: d.tone !== undefined ? +d.tone : r.tone });
+    Object.assign(r, { name: d.name.trim(), dest: d.dest.trim(), start: nodate ? '' : d.start, end: nodate ? '' : d.end, days: nodate ? +d.days || 3 : r.days, tone: d.tone !== undefined ? +d.tone : r.tone });
     const n = dayCount(r); r.places.forEach((p) => { if (p.day > n) p.day = null; });
     if (provider(r) !== pv0) { mapCtl?.destroy(); mapCtl = null; }
     touch(r); render(); toast('저장했어요');
