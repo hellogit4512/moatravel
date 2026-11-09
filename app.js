@@ -17,12 +17,18 @@ const ECATS = [
 ];
 const MOODS = ['😆', '🥰', '😌', '🤤', '😴', '🥲'];
 const TABS = [
-  { k: 'today', n: '오늘', i: 'sun' }, { k: 'places', n: '모아둔 곳', i: 'pin' }, { k: 'plan', n: '우리 일정', i: 'cal' }, { k: 'chat', n: '대화', i: 'chat' },
-  { k: 'money', n: '정산', i: 'wallet' }, { k: 'docs', n: '티켓·서류', i: 'ticket' }, { k: 'pack', n: '준비물', i: 'checks' }, { k: 'journal', n: '여행 기록', i: 'camera' },
+  { k: 'today', n: '오늘', i: 'sun' }, { k: 'places', n: '모아둔 곳', i: 'pin' }, { k: 'plan', n: '우리 일정', i: 'cal' },
+  { k: 'money', n: '정산', i: 'wallet' }, { k: 'docs', n: '보관함', i: 'ticket' }, { k: 'chat', n: '대화', i: 'chat' },
   { k: 'room', n: '여행방 설정', i: 'sliders' },
+  { k: 'journal', n: '여행 기록', i: 'camera', hide: true }, { k: 'pack', n: '준비물', i: 'checks', hide: true },
 ];
-const BNAV_BASE = ['places', 'plan', 'chat', 'money'];
-const bnavKeys = (r) => (r && tripToday(r) ? ['today', 'plan', 'chat', 'money'] : BNAV_BASE);
+// 숨은 탭이 어느 메뉴에 속하는지
+const NAV_OF = { journal: 'docs', pack: 'plan' };
+const navOn = (tab, k) => tab === k || NAV_OF[tab] === k;
+// '오늘'은 여행 기간이거나 출발 3일 전부터만 보여요
+const showToday = (r) => !!r && !undated(r) && !r.demo ? (tripToday(r) > 0 || (new Date(r.start) - new Date(isoDate(new Date()))) / 864e5 <= 3 && new Date(r.end) >= new Date(isoDate(new Date()))) : !!r?.demo;
+const navTabs = (r) => TABS.filter((t) => !t.hide && (t.k !== 'today' || showToday(r)));
+const bnavKeys = (r) => (r && tripToday(r) ? ['today', 'plan', 'money', 'docs'] : ['places', 'plan', 'money', 'docs']);
 const PACK_TEMPLATE = ['신분증 · 여권', '충전기 · 보조배터리', '세면도구', '상비약', '선크림', '갈아입을 옷', '우산', '멀티탭'];
 const KR = /한국|대한민국|국내|서울|부산|제주|강릉|속초|양양|경주|전주|여수|순천|대전|대구|인천|광주|울산|수원|춘천|가평|남해|통영|거제|포항|목포|군산|강원|경기|충청|충북|충남|전라|전북|전남|경상|경북|경남|청주|안동|단양|태안|서산|보령|울릉|독도|평창|홍천|용인|파주|seoul|busan|jeju|korea|gangneung/i;
 
@@ -736,7 +742,8 @@ function side(rt, r) {
     ${brand()}
     ${r ? `<div>
       <div class="side-label">이번 여행</div>
-      <nav class="nav">${TABS.map((t) => `<button class="${rt.tab === t.k ? 'on' : ''}" data-act="tab" data-k="${t.k}">${I(t.i)}<span>${t.n}</span>${counts(r, t.k)}</button>`).join('')}</nav>
+      <nav class="nav">${navTabs(r).filter((t) => t.k !== 'chat' && t.k !== 'room').map((t) => `<button class="${navOn(rt.tab, t.k) ? 'on' : ''}" data-act="tab" data-k="${t.k}">${I(t.i)}<span>${t.n}</span>${counts(r, t.k)}</button>`).join('')}</nav>
+      <nav class="nav nav-sub">${['chat', 'room'].map((k) => { const t = TABS.find((x) => x.k === k); return `<button class="${rt.tab === k ? 'on' : ''}" data-act="tab" data-k="${k}">${I(t.i)}<span>${t.n}</span>${counts(r, k)}</button>`; }).join('')}</nav>
     </div>` : ''}
     <div>
       <div class="side-label">내 여행</div>
@@ -753,13 +760,13 @@ function topbar(r) {
   return `<header class="topbar"><button class="btn ghost icon" data-act="home" aria-label="내 여행으로">${I('back', 20)}</button><div class="title">${esc(r.name)}</div><button class="btn ghost icon" data-act="share" aria-label="초대·공유">${I('share', 20)}</button></header>`;
 }
 function bnav(tab, r) {
-  const BN = bnavKeys(r), inMore = !BN.includes(tab);
-  return `<nav class="bnav" aria-label="여행 메뉴">${BN.map((k) => { const t = TABS.find((x) => x.k === k); return `<button class="${tab === k ? 'on' : ''}" data-act="tab" data-k="${k}">${I(t.i, 22)}${k === 'chat' && unread(r) ? '<i class="udot"></i>' : ''}<span>${t.n.replace('모아둔 곳', '장소').replace('우리 일정', '일정')}</span></button>`; }).join('')}
-    <button class="${inMore ? 'on' : ''}" data-act="more">${I('grid', 22)}<span>더보기</span></button></nav>`;
+  const BN = bnavKeys(r), inMore = !BN.some((k) => navOn(tab, k));
+  return `<nav class="bnav" aria-label="여행 메뉴">${BN.map((k) => { const t = TABS.find((x) => x.k === k); return `<button class="${navOn(tab, k) ? 'on' : ''}" data-act="tab" data-k="${k}">${I(t.i, 22)}<span>${t.n.replace('모아둔 곳', '장소').replace('우리 일정', '일정')}</span></button>`; }).join('')}
+    <button class="${inMore ? 'on' : ''}" data-act="more" data-k="chat">${I('grid', 22)}${unread(r) ? '<i class="udot"></i>' : ''}<span>더보기</span></button></nav>`;
 }
 function counts(r, k) {
   if (k === 'chat') { const u = unread(r); if (u) return `<span class="cnt unread">${u > 99 ? '99+' : u}</span>`; }
-  const n = { places: r.places.length, money: r.expenses.length, pack: r.checklist.filter((c) => !c.done).length, journal: r.journal.length, docs: (r.docs || []).length, chat: r.messages.filter((m) => !m.sys).length }[k];
+  const n = { places: r.places.length, money: r.expenses.length, pack: r.checklist.filter((c) => !c.done).length, journal: r.journal.length, docs: (r.docs || []).length + r.journal.length, chat: r.messages.filter((m) => !m.sys).length }[k];
   return n ? `<span class="cnt">${n}</span>` : '';
 }
 function empty(icon, title, desc, btn = '') {
@@ -1127,6 +1134,7 @@ function planTab(r) {
       <select data-change="assign-one" data-id="${p.id}" aria-label="${esc(p.name)} 날짜"><option value="">날짜</option>${Array.from({ length: days }, (_, i) => `<option value="${i + 1}">${i + 1}일차</option>`).join('')}</select></span>`).join('')}</div>`
       : `<p class="faint" style="margin:8px 0 0;font-size:14px">모든 장소가 일정에 들어갔어요. 일정에서 빼려면 여기로 끌어다 놓으세요.</p>`}
   </section>`}
+  <div class="plan-pack" id="pack">${packTab(r)}</div>
   </div>${planMap(r)}</div>`;
 }
 function planMap(r) {
@@ -1288,10 +1296,13 @@ const DKINDS = [
   { k: 'move', n: '교통', c: '#14b8a6' }, { k: 'receipt', n: '영수증', c: '#ff6a47' }, { k: 'etc', n: '기타', c: '#94a3b8' },
 ];
 const dkind = (k) => DKINDS.find((x) => x.k === k) || DKINDS[5];
+function vaultSeg(r, cur) {
+  return `<div class="seg vault-seg" role="tablist"><button class="${cur === 'docs' ? 'on' : ''}" data-act="tab" data-k="docs">${I('ticket', 15)}티켓·서류 <span class="faint">${(r.docs || []).length}</span></button><button class="${cur === 'journal' ? 'on' : ''}" data-act="tab" data-k="journal">${I('camera', 15)}사진·기록 <span class="faint">${r.journal.length}</span></button></div>`;
+}
 function docsTab(r) {
   const list = (r.docs || []).slice().sort((a, b) => (a.day || 99) - (b.day || 99) || (b.at || 0) - (a.at || 0));
   const receipts = r.expenses.filter((e) => e.photos?.length);
-  return `<div class="sec"><div><h2>티켓 · 서류</h2><p>항공권, 숙소 예약, 입장권 캡처를 한곳에. ${shared(r) ? '일행 모두가 함께 봐요.' : '함께 보는 여행방으로 열면 일행도 볼 수 있어요.'}</p></div>
+  return `${vaultSeg(r, 'docs')}<div class="sec"><div><h2>티켓 · 서류</h2><p>항공권, 숙소 예약, 입장권 캡처를 한곳에. ${shared(r) ? '일행 모두가 함께 봐요.' : '함께 보는 여행방으로 열면 일행도 볼 수 있어요.'}</p></div>
     <div class="acts"><button class="btn pri" data-act="add-doc">${I('plus')}올리기</button></div></div>
   ${list.length ? `<div class="docs">${list.map((d) => { const k = dkind(d.kind), w = member(r, d.by); return `<button class="doc" data-act="open-doc" data-id="${d.id}">
       <div class="doc-thumb">${d.photos?.[0] ? ph(d.photos[0], esc(d.title), false) : `<span class="ill">${I('ticket', 28, 1.4)}</span>`}${d.photos?.length > 1 ? `<span class="more">+${d.photos.length - 1}</span>` : ''}</div>
@@ -1340,7 +1351,7 @@ function docView(r, d) {
 // ───── 기록 ─────
 function journalTab(r) {
   const days = [...new Set(r.journal.map((j) => j.day))].sort((a, b) => a - b);
-  return `<div class="sec"><div><h2>여행 기록</h2><p>그날의 기분과 사진을 남겨요. ${shared(r) ? '사진도 일행 모두가 함께 봐요.' : '사진은 이 기기에만 저장돼요.'}</p></div>
+  return `${vaultSeg(r, 'journal')}<div class="sec"><div><h2>여행 기록</h2><p>그날의 기분과 사진을 남겨요. ${shared(r) ? '사진도 일행 모두가 함께 봐요.' : '사진은 이 기기에만 저장돼요.'}</p></div>
     <div class="acts"><button class="btn pri" data-act="add-entry">${I('plus')}기록 남기기</button></div></div>
   ${days.length ? days.map((d) => `<section class="jday"><div class="d"><div class="n">${d}일차</div><div class="faint" style="font-size:13px">${dayLabel(r, d)}</div></div><div>
     ${r.journal.filter((j) => j.day === d).sort((a, b) => (a.upd || 0) - (b.upd || 0)).map((j) => { const w = member(r, j.by); return `<article class="card entry">
@@ -1617,7 +1628,7 @@ function moreMenu(r) {
   const f = openModal({
     title: '더보기', raw: true,
     body: `<div class="menu">
-      ${TABS.filter((t) => !bnavKeys(r).includes(t.k)).map((t) => `<button type="button" data-t="${t.k}" style="${tab === t.k ? 'font-weight:700' : ''}">${I(t.i)}${t.n}${counts(r, t.k)}</button>`).join('')}
+      ${navTabs(r).filter((t) => !bnavKeys(r).includes(t.k)).map((t) => `<button type="button" data-t="${t.k}" style="${navOn(tab, t.k) ? 'font-weight:700' : ''}">${I(t.i)}${t.n}${counts(r, t.k)}</button>`).join('')}
       <hr>
       <button type="button" data-x="share">${I('share')}초대 · 공유</button>
       <button type="button" data-x="theme">${I('moon')}테마 바꾸기</button>
@@ -1646,7 +1657,7 @@ document.addEventListener('click', (ev) => {
   const P = (id) => r.places.find((p) => p.id === id);
   const acts = {
     home: () => go('#/'),
-    open: () => { const x = S.rooms[el.dataset.id]; go(`#/r/${el.dataset.id}/${x && tripToday(x) ? 'today' : 'places'}`); },
+    open: () => { const x = S.rooms[el.dataset.id]; go(`#/r/${el.dataset.id}/${x && !x.demo && tripToday(x) ? 'today' : 'places'}`); },
     tab: () => go(`#/r/${r.id}/${el.dataset.k}`),
     more: () => moreMenu(r),
     'new-room': roomModal,

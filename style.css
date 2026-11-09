@@ -580,3 +580,10 @@ h3{margin:0;font-size:16px;font-weight:700;letter-spacing:-.015em}
 .map-mobile,.map-pane{position:relative;isolation:isolate}
 @media (max-width:760px){.main:has(.today) .trip-head{display:none}.today{gap:10px}}
 #toast button{white-space:nowrap;flex:none}#toast{max-width:calc(100vw - 32px)}
+
+/* 메뉴 정리 */
+.nav-sub{margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.nav-sub button{color:var(--muted);font-size:13.5px}
+.vault-seg{display:inline-flex;margin:4px 0 -4px}
+.vault-seg button{display:inline-flex;align-items:center;gap:6px;padding:0 14px;height:36px}
+.plan-pack{margin-top:28px;padding-top:6px;border-top:1px dashed var(--line)}
