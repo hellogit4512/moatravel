@@ -542,3 +542,41 @@ h3{margin:0;font-size:16px;font-weight:700;letter-spacing:-.015em}
 .opt-votes .avs .av+.av{margin-left:-6px}
 .opt .btn.sm{height:32px;padding:0 10px;flex:none}
 @media (max-width:760px){.decide{padding:16px 14px}.opt{flex-wrap:wrap}.opt .grow{flex-basis:100%}}
+
+/* 오늘 (현장 모드) */
+.today{max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+.today-h{display:flex;align-items:center;gap:8px;margin-top:4px}
+.today-day{font-size:22px;font-weight:800;letter-spacing:-.02em;display:inline-flex;align-items:center;gap:8px}
+.today-day .live{font-size:11px;font-weight:800;color:#fff;background:var(--warm);padding:3px 8px;border-radius:99px;letter-spacing:0;animation:beat 2.4s ease-in-out infinite}
+.today-progress{height:6px;border-radius:99px;background:var(--sunk);overflow:hidden}
+.today-progress i{display:block;height:100%;border-radius:99px;transition:width .5s var(--ease)}
+.now{padding:20px;border-color:color-mix(in srgb,var(--accent) 40%,var(--line));box-shadow:0 10px 30px rgba(15,60,45,.08)}
+.now-k{font-size:12px;font-weight:700;color:var(--accent);letter-spacing:.02em}
+.now-name{margin:6px 0 4px;font-size:24px;line-height:1.25;letter-spacing:-.02em;display:flex;align-items:center;gap:8px}
+.now-sub{font-size:14px}
+.now-memo{margin:10px 0 0;padding-left:12px;border-left:2px solid var(--line-2);font-size:14.5px}
+.now-acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}
+.now-acts.sm{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.now-acts .btn.big{height:52px;font-size:16px;font-weight:700;justify-content:center;border-radius:14px}
+.today-list{list-style:none;margin:0;padding:6px 0}
+.today-list li{display:flex;align-items:center;gap:10px;padding:8px 12px 8px 14px}
+.today-list li+li{border-top:1px solid var(--line)}
+.today-list li.cur{background:var(--accent-soft)}
+.today-list li.done .tl-name b{color:var(--faint);text-decoration:line-through;text-decoration-color:var(--line-2)}
+.tl-chk{flex:none;width:30px;height:30px;border-radius:50%;border:2px solid var(--c);background:var(--surface);color:var(--c);font-weight:800;font-size:12px;display:grid;place-items:center;cursor:pointer}
+.today-list li.done .tl-chk{background:var(--c);color:#fff}
+.tl-name{flex:1;min-width:0;display:flex;align-items:baseline;gap:8px;border:0;background:none;padding:6px 0;text-align:left;cursor:pointer;color:inherit;font:inherit}
+.tl-name b{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl-name .faint{font-size:12px;flex:none}
+.tl-amt{font-size:12px;font-weight:700;color:color-mix(in srgb,var(--warm) 80%,var(--text));font-variant-numeric:tabular-nums}
+.today-map .map-mobile{height:clamp(200px,30dvh,300px);min-height:0}
+.today-g{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.today-tile{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:14px 16px;text-align:left;cursor:pointer;min-width:0}
+.today-tile .k{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);font-weight:600}
+.today-tile b{font-size:20px;font-variant-numeric:tabular-nums}
+.today-tile .faint{font-size:12px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.today-tile:hover{border-color:var(--accent)}
+.today-docs{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+.map-mobile,.map-pane{position:relative;isolation:isolate}
+@media (max-width:760px){.main:has(.today) .trip-head{display:none}.today{gap:10px}}
+#toast button{white-space:nowrap;flex:none}#toast{max-width:calc(100vw - 32px)}

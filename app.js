@@ -17,11 +17,12 @@ const ECATS = [
 ];
 const MOODS = ['😆', '🥰', '😌', '🤤', '😴', '🥲'];
 const TABS = [
-  { k: 'places', n: '모아둔 곳', i: 'pin' }, { k: 'plan', n: '우리 일정', i: 'cal' }, { k: 'chat', n: '대화', i: 'chat' },
+  { k: 'today', n: '오늘', i: 'sun' }, { k: 'places', n: '모아둔 곳', i: 'pin' }, { k: 'plan', n: '우리 일정', i: 'cal' }, { k: 'chat', n: '대화', i: 'chat' },
   { k: 'money', n: '정산', i: 'wallet' }, { k: 'docs', n: '티켓·서류', i: 'ticket' }, { k: 'pack', n: '준비물', i: 'checks' }, { k: 'journal', n: '여행 기록', i: 'camera' },
   { k: 'room', n: '여행방 설정', i: 'sliders' },
 ];
-const BNAV = ['places', 'plan', 'chat', 'money'];
+const BNAV_BASE = ['places', 'plan', 'chat', 'money'];
+const bnavKeys = (r) => (r && tripToday(r) ? ['today', 'plan', 'chat', 'money'] : BNAV_BASE);
 const PACK_TEMPLATE = ['신분증 · 여권', '충전기 · 보조배터리', '세면도구', '상비약', '선크림', '갈아입을 옷', '우산', '멀티탭'];
 const KR = /한국|대한민국|국내|서울|부산|제주|강릉|속초|양양|경주|전주|여수|순천|대전|대구|인천|광주|울산|수원|춘천|가평|남해|통영|거제|포항|목포|군산|강원|경기|충청|충북|충남|전라|전북|전남|경상|경북|경남|청주|안동|단양|태안|서산|보령|울릉|독도|평창|홍천|용인|파주|seoul|busan|jeju|korea|gangneung/i;
 
@@ -715,7 +716,7 @@ function render() {
   if (slot && r) {
     if (mapCtl && !mapCtl.dead && mapCtl.roomId === r.id && mapCtl.pv === provider(r)) { slot.replaceWith(mapCtl.el); mapCtl.update(r); mapCtl.resize(); }
     else { mapCtl?.destroy(); mapCtl = createMap(r); slot.replaceWith(mapCtl.el); }
-    mapCtl.setDay(rt.tab === 'plan' ? ui.planDay : null);
+    mapCtl.setDay(rt.tab === 'plan' ? ui.planDay : rt.tab === 'today' ? todayDay(r) : null);
     if (mapCtl.kind) $('.map-src')?.replaceChildren(document.createTextNode(PNAME[mapCtl.kind]));
   }
   if (r && rt.tab === 'chat') { const el = $('.msgs'); if (el) el.scrollTop = el.scrollHeight; markSeen(r); }
@@ -752,8 +753,8 @@ function topbar(r) {
   return `<header class="topbar"><button class="btn ghost icon" data-act="home" aria-label="내 여행으로">${I('back', 20)}</button><div class="title">${esc(r.name)}</div><button class="btn ghost icon" data-act="share" aria-label="초대·공유">${I('share', 20)}</button></header>`;
 }
 function bnav(tab, r) {
-  const inMore = !BNAV.includes(tab);
-  return `<nav class="bnav" aria-label="여행 메뉴">${BNAV.map((k) => { const t = TABS.find((x) => x.k === k); return `<button class="${tab === k ? 'on' : ''}" data-act="tab" data-k="${k}">${I(t.i, 22)}${k === 'chat' && unread(r) ? '<i class="udot"></i>' : ''}<span>${t.n.replace('모아둔 곳', '장소').replace('우리 일정', '일정')}</span></button>`; }).join('')}
+  const BN = bnavKeys(r), inMore = !BN.includes(tab);
+  return `<nav class="bnav" aria-label="여행 메뉴">${BN.map((k) => { const t = TABS.find((x) => x.k === k); return `<button class="${tab === k ? 'on' : ''}" data-act="tab" data-k="${k}">${I(t.i, 22)}${k === 'chat' && unread(r) ? '<i class="udot"></i>' : ''}<span>${t.n.replace('모아둔 곳', '장소').replace('우리 일정', '일정')}</span></button>`; }).join('')}
     <button class="${inMore ? 'on' : ''}" data-act="more">${I('grid', 22)}<span>더보기</span></button></nav>`;
 }
 function counts(r, k) {
@@ -833,7 +834,7 @@ function roomPage(r, tab) {
   </section>
   ${r.demo ? `<div class="notice"><span><b>예시 여행방</b>이에요. 마음껏 눌러보세요 — 변경은 이 기기에만 저장돼요.</span><span class="sp"></span><button class="btn sm" data-act="fork-demo">이 내용으로 내 여행 만들기</button><button class="btn sm ghost" data-act="reset-demo">처음으로</button></div>` : ''}
   ${(tab === 'places' || tab === 'plan') && !(shared(r) && S.sync[r.id].needPass) ? decideCard(r) : ''}
-  ${shared(r) && S.sync[r.id].needPass ? passGate(r) : ({ chat: chatTab, places: placesTab, plan: planTab, money: moneyTab, pack: packTab, journal: journalTab, docs: docsTab, room: settingsTab })[tab](r)}`;
+  ${shared(r) && S.sync[r.id].needPass ? passGate(r) : ({ chat: chatTab, places: placesTab, plan: planTab, money: moneyTab, pack: packTab, journal: journalTab, docs: docsTab, today: todayTab, room: settingsTab })[tab](r)}`;
 }
 
 // ───── 대화 ─────
@@ -1047,6 +1048,53 @@ function placeInDay(r, p, d, index) {
   p.day = d || null;
   if (d) { items.splice(index ?? items.length, 0, p); items.forEach((x, k) => { x.order = k; x.upd = now(); }); }
   touch(r, p);
+}
+// ───── 오늘 (현장 모드) ─────
+const todayDay = (r) => Math.min(dayCount(r), ui.td?.[r.id] || tripToday(r) || 1);
+function todayTab(r) {
+  const n = dayCount(r), d = todayDay(r), live = tripToday(r) === d;
+  const items = dayItems(r, d), next = items.find((p) => !p.visited), done = items.filter((p) => p.visited).length;
+  const spent = daySpent(r, d), docs = (r.docs || []).filter((x) => x.day === d), col = COLORS[(d - 1) % COLORS.length];
+  const before = !undated(r) && !tripToday(r) && new Date(r.start) > new Date(isoDate(new Date()));
+  const ni = next ? items.indexOf(next) : -1;
+  return `<div class="today">
+  <div class="today-h">
+    <button class="btn ghost icon" data-act="today-day" data-d="${d - 1}" ${d <= 1 ? 'disabled' : ''} aria-label="이전 날">${I('back', 18)}</button>
+    <div class="grow" style="text-align:center"><div class="today-day" style="color:${col}">${d}일차${live ? ' <span class="live">오늘</span>' : ''}</div><div class="faint" style="font-size:13px">${undated(r) ? '날짜 미정' : dayLabel(r, d)}${before ? ` · 여행까지 ${dday(r)}` : ''}</div></div>
+    <button class="btn ghost icon" data-act="today-day" data-d="${d + 1}" ${d >= n ? 'disabled' : ''} aria-label="다음 날" style="transform:rotate(180deg)">${I('back', 18)}</button>
+  </div>
+  ${items.length ? `
+  <div class="today-progress"><i style="width:${(done / items.length) * 100}%;background:${col}"></i></div>
+  <div class="faint" style="font-size:12px;text-align:center;margin:6px 0 14px">${done === items.length ? '오늘 일정을 모두 마쳤어요 🎉' : `${items.length}곳 중 ${done}곳 다녀왔어요`}</div>
+  ${next ? `<section class="card now" data-pid="${next.id}">
+    <div class="now-k">${ni === 0 && !done ? '첫 번째 장소' : '지금 갈 곳'} · ${ni + 1}/${items.length}</div>
+    <h2 class="now-name"><span class="dot" style="--c:${cat(next.cat).c}"></span>${esc(next.name)}</h2>
+    <div class="faint now-sub">${next.time ? `<b style="color:var(--text)">${next.time}</b> · ` : ''}${esc(next.addr || '주소 없음')}</div>
+    ${next.memo ? `<p class="now-memo">${esc(next.memo)}</p>` : ''}
+    <div class="now-acts">
+      <a class="btn pri big" href="${esc(navLink(r, next))}" target="_blank" rel="noopener">${I('route', 18)}길찾기</a>
+      <button class="btn big" data-act="visit" data-id="${next.id}">${I('check', 18, 2.4)}다녀왔어요</button>
+    </div>
+    <div class="now-acts sm">
+      <button class="btn sm" data-act="add-exp" data-d="${d}" data-pid="${next.id}">${I('wallet', 15)}여기서 쓴 돈</button>
+      <button class="btn sm" data-act="sel-place" data-id="${next.id}">${I('pin', 15)}지도</button>
+      <a class="btn sm" href="${esc(placeLink(r, next))}" target="_blank" rel="noopener">${I('share', 15)}장소 정보</a>
+    </div>
+  </section>` : ''}
+  <ol class="card today-list">${items.map((p, j) => `<li class="${p.visited ? 'done' : ''} ${p === next ? 'cur' : ''}" data-pid="${p.id}">
+    <button class="tl-chk" data-act="visit" data-id="${p.id}" aria-pressed="${!!p.visited}" aria-label="${esc(p.name)} 다녀왔어요" style="--c:${col}">${p.visited ? I('check', 14, 2.8) : j + 1}</button>
+    <button class="tl-name" data-act="sel-place" data-id="${p.id}"><b>${esc(p.name)}</b>${p.time ? `<span class="faint">${p.time}</span>` : ''}</button>
+    ${placeSpent(r, p.id) ? `<span class="tl-amt">${won(placeSpent(r, p.id))}</span>` : ''}
+    <a class="btn ghost icon sm" href="${esc(navLink(r, p))}" target="_blank" rel="noopener" aria-label="${esc(p.name)} 길찾기">${I('route', 16)}</a>
+  </li>`).join('')}</ol>`
+  : `<div class="card">${empty('cal', `${d}일차 일정이 비어 있어요`, '우리 일정에서 이날 갈 곳을 넣어두면, 여기서 순서대로 안내해요.', `<button class="btn pri" data-act="tab" data-k="plan">${I('cal')}일정 짜러 가기</button>`)}</div>`}
+  <div class="mapblock today-map"><div class="map-mobile"><div id="map-slot"></div></div></div>
+  <div class="today-g">
+    <button class="card today-tile" data-act="add-exp" data-d="${d}"><span class="k">${I('wallet', 16)}이날 쓴 돈</span><b>${won(spent)}</b><span class="faint">＋ 빠르게 기록</span></button>
+    <button class="card today-tile" data-act="tab" data-k="docs"><span class="k">${I('ticket', 16)}이날 쓸 티켓</span><b>${docs.length}장</b><span class="faint">${docs.length ? esc(docs.map((x) => x.title).join(', ')) : '보관함 열기'}</span></button>
+  </div>
+  ${docs.length ? `<div class="docs today-docs">${docs.map((x) => `<button class="doc" data-act="open-doc" data-id="${x.id}"><div class="doc-thumb">${x.photos?.[0] ? ph(x.photos[0], esc(x.title), false) : `<span class="ill">${I('ticket', 24, 1.4)}</span>`}</div><div class="doc-body"><b>${esc(x.title)}</b></div></button>`).join('')}</div>` : ''}
+  </div>`;
 }
 function planTab(r) {
   const days = dayCount(r), pending = dayItems(r, 0).sort((a, b) => b.hearts.length - a.hearts.length);
@@ -1557,7 +1605,7 @@ function moreMenu(r) {
   const f = openModal({
     title: '더보기', raw: true,
     body: `<div class="menu">
-      ${TABS.filter((t) => !BNAV.includes(t.k)).map((t) => `<button type="button" data-t="${t.k}" style="${tab === t.k ? 'font-weight:700' : ''}">${I(t.i)}${t.n}${counts(r, t.k)}</button>`).join('')}
+      ${TABS.filter((t) => !bnavKeys(r).includes(t.k)).map((t) => `<button type="button" data-t="${t.k}" style="${tab === t.k ? 'font-weight:700' : ''}">${I(t.i)}${t.n}${counts(r, t.k)}</button>`).join('')}
       <hr>
       <button type="button" data-x="share">${I('share')}초대 · 공유</button>
       <button type="button" data-x="theme">${I('moon')}테마 바꾸기</button>
@@ -1586,7 +1634,7 @@ document.addEventListener('click', (ev) => {
   const P = (id) => r.places.find((p) => p.id === id);
   const acts = {
     home: () => go('#/'),
-    open: () => go(`#/r/${el.dataset.id}/places`),
+    open: () => { const x = S.rooms[el.dataset.id]; go(`#/r/${el.dataset.id}/${x && tripToday(x) ? 'today' : 'places'}`); },
     tab: () => go(`#/r/${r.id}/${el.dataset.k}`),
     more: () => moreMenu(r),
     'new-room': roomModal,
@@ -1633,6 +1681,7 @@ document.addEventListener('click', (ev) => {
       if (ui.planDay) $(`#day-${ui.planDay}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     },
     'plan-map': () => { ui.planMap = !ui.planMap; render(); },
+    'today-day': () => { ui.td = ui.td || {}; ui.td[r.id] = Math.max(1, Math.min(dayCount(r), +el.dataset.d)); render(); },
     'add-date-opt': () => dateOptModal(r),
     'vote-opt': () => { const o = (r[el.dataset.k] || []).find((x) => x.id === el.dataset.id); if (!o) return; const me = meId(r); o.votes = o.votes || []; const i = o.votes.indexOf(me); if (i >= 0) o.votes.splice(i, 1); else o.votes.push(me); touch(r, o); render(); },
     'del-opt': () => removeUndo(r, el.dataset.k, el.dataset.id, '후보를'),
@@ -1657,7 +1706,12 @@ document.addEventListener('click', (ev) => {
       }
     },
     'reopen-plan': () => { delete r.confirmed; sysMsg(r, `${member(r, meId(r)).name}님이 일정을 다시 열었어요`); touch(r); render(); toast('다시 고칠 수 있어요'); },
-    visit: () => { const p = P(el.dataset.id); p.visited = !p.visited; touch(r, p); render(); if (p.visited) toast(`'${p.name}' 다녀왔어요`); },
+    visit: () => {
+      const p = P(el.dataset.id); p.visited = !p.visited; touch(r, p); render();
+      if (!p.visited) return;
+      const nx = p.day && dayItems(r, p.day).find((x) => !x.visited);
+      toast(nx ? `다녀왔어요 · 다음은 '${nx.name}'` : `'${p.name}' 다녀왔어요`, { label: '되돌리기', fn() { p.visited = false; touch(r, p); render(); } });
+    },
     'set-day': () => { if (locked(r)) return; const p = P(el.dataset.id), d = +el.dataset.d || 0; placeInDay(r, p, d); render(); if (d) toast(`${d}일차에 넣었어요`); },
     move: () => {
       if (locked(r)) return;
