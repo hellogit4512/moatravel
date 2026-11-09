@@ -748,7 +748,7 @@ function side(rt, r) {
     <div>
       <div class="side-label">내 여행</div>
       <nav class="nav">
-        ${rooms.map((x) => `<button class="${r && r.id === x.id ? 'on' : ''}" data-act="open" data-id="${x.id}"><span class="trip-dot" style="background:${tone(x)[0]}"></span><span class="ellip">${esc(x.name)}</span></button>`).join('')}
+        ${rooms.filter((x) => !x.demo || rooms.every((y) => y.demo) || (r && r.id === x.id)).map((x) => `<button class="${r && r.id === x.id ? 'on' : ''}" data-act="open" data-id="${x.id}"><span class="trip-dot" style="background:${tone(x)[0]}"></span><span class="ellip">${esc(x.name)}</span></button>`).join('')}
         <button data-act="new-room">${I('plus')}<span>새 여행 만들기</span></button>
       </nav>
     </div>
@@ -778,6 +778,14 @@ function home() {
   const rooms = Object.values(S.rooms).sort((a, b) => b.updatedAt - a.updatedAt);
   const today = isoDate(new Date());
   const next = rooms.filter((x) => !x.demo && !undated(x) && x.end >= today).sort((a, b) => a.start.localeCompare(b.start))[0];
+  const mine = rooms.filter((x) => !x.demo);
+  // 내 여행이 생기면 소개·예시는 빼고 내 여행만 간단히
+  if (mine.length) return `
+  <div class="sec home-sec"><div><h2>내 여행 <span class="faint num" style="font-family:var(--sans);font-size:16px;font-weight:500">${mine.length}</span></h2></div>
+    <div class="acts"><button class="btn sm ghost" data-act="import">${I('upload', 16)}가져오기</button><button class="btn sm pri" data-act="new-room">${I('plus', 16)}새 여행</button></div></div>
+  ${next ? `<button class="badge-next home-next" data-act="open" data-id="${next.id}"><div class="dday-big">${dday(next)}</div><div class="grow"><div style="font-weight:700">${esc(next.name)}</div><div class="faint" style="font-size:13px">${esc(destName(next))} · ${range(next)} · ${nights(next)}</div></div><span style="transform:rotate(180deg);color:var(--faint)">${I('back', 18)}</span></button>` : ''}
+  <div class="trips">${mine.map(tripCard).join('')}</div>
+  <footer class="foot"><span>모아여행</span><button class="link faint" data-act="open" data-id="demo">예시 여행 둘러보기</button></footer>`;
   return `
   <section class="hero">
     <div>

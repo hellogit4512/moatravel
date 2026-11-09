@@ -587,3 +587,5 @@ h3{margin:0;font-size:16px;font-weight:700;letter-spacing:-.015em}
 .vault-seg{display:inline-flex;margin:4px 0 -4px}
 .vault-seg button{display:inline-flex;align-items:center;gap:6px;padding:0 14px;height:36px}
 .plan-pack{margin-top:28px;padding-top:6px;border-top:1px dashed var(--line)}
+.home-sec{margin-top:8px}.home-next{margin-bottom:16px;width:100%}.foot .link{background:none;border:0;cursor:pointer;font:inherit;text-decoration:underline;text-underline-offset:3px}
+.home-next{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;background:var(--surface);border:1px solid var(--line);text-align:left;cursor:pointer}.home-next:hover{border-color:var(--accent)}
