@@ -457,3 +457,26 @@ h3{margin:0;font-size:16px;font-weight:700;letter-spacing:-.015em}
 .places-layout.stack .map-mobile{height:clamp(220px,36dvh,380px);min-height:0;box-shadow:0 6px 18px rgba(15,60,45,.08)}
 .places-layout.stack .place{scroll-margin-top:calc(var(--top) + clamp(220px,36dvh,380px) + 28px)}
 @media (min-width:1024px){.places-layout.stack .mapblock{top:12px}}
+
+/* 일정 ↔ 정산 연결 */
+.day-spent{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 10px;border-radius:99px;border:1px solid var(--line);background:var(--surface);font-size:12.5px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;cursor:pointer;transition:border-color .15s,background .15s}
+.day-spent .i{color:var(--warm)}
+.day-spent .plus{color:var(--faint);font-weight:600;margin-left:1px}
+.day-spent.zero{font-weight:600;color:var(--faint)}
+.day-spent:hover{border-color:var(--warm);background:color-mix(in srgb,var(--warm) 8%,var(--surface))}
+.stop-exp{margin-left:auto;height:24px;padding:0 9px;border-radius:99px;border:1px dashed var(--line);background:none;font-size:11.5px;font-weight:600;color:var(--faint);cursor:pointer;white-space:nowrap;font-variant-numeric:tabular-nums}
+.stop-exp.has{border-style:solid;border-color:transparent;background:color-mix(in srgb,var(--warm) 12%,transparent);color:color-mix(in srgb,var(--warm) 80%,var(--text))}
+.stop-exp:hover{border-color:var(--warm);color:var(--warm)}
+.daybars{padding:16px 20px 18px;border-top:1px solid var(--line)}
+.daybars-g{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:8px;height:120px;align-items:end}
+.db{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:100%;padding:0;border:0;background:none;cursor:pointer;min-width:0}
+.db i{display:block;width:min(100%,38px);border-radius:7px 7px 3px 3px;transition:height .5s var(--ease),filter .15s}
+.db:hover i{filter:brightness(1.08)}
+.db-v{font-size:11px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.db-l{font-size:11px;color:var(--faint);white-space:nowrap}
+.exp-day{margin-bottom:14px;scroll-margin-top:calc(var(--top) + 12px)}
+.exp-day-h{display:flex;align-items:baseline;gap:8px;padding:2px 4px 8px;font-size:14px}
+.exp-day-h .amt{font-size:14px}
+.day-head .day-no,.day-head .day-date,.day-spent{white-space:nowrap;flex:none}
+.day-head{flex-wrap:wrap;row-gap:6px}
+.day-head .btn{flex:none}

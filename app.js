@@ -1043,11 +1043,12 @@ function planTab(r) {
     const d = i + 1, items = dayItems(r, d), col = COLORS[i % COLORS.length];
     return `<section class="day" data-drop="${d}">
       <div class="day-head"><span class="day-no" style="color:${col}">${d}일차</span><span class="day-date">${dayLabel(r, d)}</span><span class="sp"></span>
+        <button class="day-spent ${daySpent(r, d) ? '' : 'zero'}" data-act="add-exp" data-d="${d}" title="${d}일차 지출 추가">${I('wallet', 14)}${daySpent(r, d) ? won(daySpent(r, d)) : '지출'}<span class="plus">＋</span></button>
         ${items.length > 1 ? `<a class="btn ghost sm" href="${esc(routeUrl(r, items))}" target="_blank" rel="noopener" title="${PNAME[provider(r)]} 경로">${I('route', 16)}경로</a>` : ''}</div>
       ${items.length ? `<ol class="stops">${items.map((p, j) => `<li class="stop ${p.visited ? 'visited' : ''}" ${lock ? '' : `draggable="true" data-drag="${p.id}"`} style="--c:${col}">
         <span class="stop-no">${j + 1}</span>
         <div class="grow"><div class="stop-name"><span class="dot" style="--c:${cat(p.cat).c}"></span>${esc(p.name)}</div>
-          <div class="stop-sub"><input type="time" value="${p.time || ''}" data-change="time" data-id="${p.id}" aria-label="${esc(p.name)} 시간" ${lock ? 'disabled' : ''}>${p.hearts.length ? `<span class="faint" style="font-size:12px">♥ ${p.hearts.length}</span>` : ''}</div></div>
+          <div class="stop-sub"><input type="time" value="${p.time || ''}" data-change="time" data-id="${p.id}" aria-label="${esc(p.name)} 시간" ${lock ? 'disabled' : ''}>${p.hearts.length ? `<span class="faint" style="font-size:12px">♥ ${p.hearts.length}</span>` : ''}<button class="stop-exp ${placeSpent(r, p.id) ? 'has' : ''}" data-act="add-exp" data-d="${d}" data-pid="${p.id}" title="${esc(p.name)}에서 쓴 돈 기록">${placeSpent(r, p.id) ? won(placeSpent(r, p.id)) : '＋ 지출'}</button></div></div>
         ${lock ? `<button class="visit ${p.visited ? 'on' : ''}" data-act="visit" data-id="${p.id}" aria-pressed="${!!p.visited}" aria-label="${esc(p.name)} 다녀왔어요" title="다녀왔어요">${I('check', 15, 2.6)}</button>`
           : `<div class="stop-ctrl"><button data-act="visit" data-id="${p.id}" aria-label="다녀왔어요 표시" title="다녀왔어요">${I('check', 16)}</button><button data-act="move" data-id="${p.id}" data-dir="-1" aria-label="위로">${I('up', 16)}</button><button data-act="move" data-id="${p.id}" data-dir="1" aria-label="아래로">${I('down', 16)}</button><button data-act="set-day" data-id="${p.id}" data-d="0" aria-label="일정에서 빼기">${I('x', 16)}</button></div>`}
       </li>`).join('')}</ol>` : `<div class="day-empty">${lock ? '이 날은 비어 있어요' : '여기로 장소를 끌어다 놓거나<br>아래에서 골라 넣어요'}</div>`}
@@ -1074,6 +1075,15 @@ function planText(r) {
 }
 
 // ───── 정산 ─────
+// 지출의 날짜: 직접 고른 날 > 연결한 장소의 날 > 0(여행 전·공통)
+function expDay(r, e) { const d = +e.day || +(e.pid && r.places.find((p) => p.id === e.pid)?.day) || 0; return d >= 1 && d <= dayCount(r) ? d : 0; }
+const daySpent = (r, d) => r.expenses.filter((e) => expDay(r, e) === d).reduce((s, e) => s + e.amount, 0);
+const placeSpent = (r, pid) => r.expenses.filter((e) => e.pid === pid).reduce((s, e) => s + e.amount, 0);
+function tripToday(r) { const d = Math.round((new Date(isoDate(new Date())) - new Date(r.start)) / 864e5) + 1; return d >= 1 && d <= dayCount(r) ? d : 0; }
+function expRow(r, e) {
+  const pl = e.pid && r.places.find((p) => p.id === e.pid);
+  return `<button class="r" data-act="edit-exp" data-id="${e.id}"><span class="dot" style="--c:${ecat(e.cat).c}"></span><div class="grow"><b>${esc(e.title)}</b>${e.photos?.length ? ` <span class="faint" title="영수증 ${e.photos.length}장" style="display:inline-flex;vertical-align:-3px">${I('clip', 15)}</span>` : ''}<div class="faint" style="font-size:12px">${ecat(e.cat).n}${pl ? ` · ${I('pin', 11)} ${esc(pl.name)}` : ''} · ${esc(member(r, e.payer).name)} 결제 · ${e.split.length}명</div></div><div style="text-align:right"><div class="amt">${won(e.amount)}</div><div class="faint num" style="font-size:12px">1인 ${won(e.amount / Math.max(1, e.split.length))}</div></div></button>`;
+}
 function settle(r) {
   const bal = {}; r.members.forEach((m) => (bal[m.id] = 0));
   r.expenses.forEach((e) => {
@@ -1109,6 +1119,7 @@ function moneyTab(r) {
     <div class="stats"><div><div class="k">총 지출</div><div class="v">${won(total)}</div></div><div><div class="k">1인 평균</div><div class="v">${won(total / Math.max(1, r.members.length))}</div></div><div><div class="k">내 몫</div><div class="v">${won(mine)}</div></div></div>
     <div style="padding:0 20px 18px"><div class="bar">${byCat.map(([c, v]) => `<i title="${c.n} ${won(v)}" style="width:${(v / total) * 100}%;background:${c.c}"></i>`).join('')}</div>
     <div class="legend">${byCat.map(([c, v]) => `<span class="row" style="gap:6px"><span class="dot" style="--c:${c.c}"></span>${c.n} <b>${won(v)}</b></span>`).join('')}</div></div>
+    ${dayBars(r)}
   </div>
   <div class="two">
     <div>
@@ -1119,20 +1130,31 @@ function moneyTab(r) {
         return `<div class="r">${av(m, 28)}<div class="grow"><b>${esc(m.name)}</b><div class="faint" style="font-size:12px">낸 돈 ${won(paid)} · 내 몫 ${won(paid - b)}</div></div><span class="amt ${b > 0.5 ? 'pos' : b < -0.5 ? 'neg' : 'faint'}">${b > 0.5 ? '받을 돈 ' : b < -0.5 ? '보낼 돈 ' : ''}${won(Math.abs(b))}</span></div>`; }).join('')}</div>
     </div>
     <div>
-      <div class="sec"><div><h2>지출 내역</h2><p>${r.expenses.length}건 · 눌러서 수정</p></div></div>
-      <div class="card rows">${r.expenses.slice().sort((a, b) => b.at - a.at).map((e) => `<button class="r" data-act="edit-exp" data-id="${e.id}"><span class="dot" style="--c:${ecat(e.cat).c}"></span><div class="grow"><b>${esc(e.title)}</b>${e.photos?.length ? ` <span class="faint" title="영수증 ${e.photos.length}장" style="display:inline-flex;vertical-align:-3px">${I('clip', 15)}</span>` : ''}<div class="faint" style="font-size:12px">${ecat(e.cat).n} · ${esc(member(r, e.payer).name)} 결제 · ${e.split.length}명</div></div><div style="text-align:right"><div class="amt">${won(e.amount)}</div><div class="faint num" style="font-size:12px">1인 ${won(e.amount / Math.max(1, e.split.length))}</div></div></button>`).join('')}</div>
+      <div class="sec"><div><h2>지출 내역</h2><p>${r.expenses.length}건 · 날짜별로 모았어요 · 눌러서 수정</p></div></div>
+      ${Array.from({ length: dayCount(r) + 1 }, (_, d) => { const list = r.expenses.filter((e) => expDay(r, e) === d).sort((a, b) => b.at - a.at); if (!list.length) return '';
+        return `<div class="exp-day" id="exp-d${d}"><div class="exp-day-h"><b>${d ? `${d}일차` : '여행 전 · 공통'}</b>${d ? `<span class="faint">${dayLabel(r, d)}</span>` : ''}<span class="sp"></span><span class="amt">${won(list.reduce((s, e) => s + e.amount, 0))}</span></div>
+        <div class="card rows">${list.map((e) => expRow(r, e)).join('')}</div></div>`; }).join('')}
     </div>
   </div>`;
 }
-function expModal(r, e) {
+function dayBars(r) {
+  const n = dayCount(r), vals = Array.from({ length: n + 1 }, (_, d) => daySpent(r, d));
+  if (!vals.slice(1).some(Boolean)) return '';
+  const max = Math.max(...vals.slice(1), 1);
+  return `<div class="daybars"><div class="faint" style="font-size:12px;margin-bottom:10px">하루 지출${vals[0] ? ` · 여행 전·공통 ${won(vals[0])} 별도` : ''}</div><div class="daybars-g" style="--n:${n}">${vals.slice(1).map((v, i) => `<button class="db" data-act="jump-day" data-d="${i + 1}" title="${i + 1}일차 ${won(v)}"><span class="db-v">${v ? won(v).replace('원', '') : ''}</span><i style="height:${Math.max(v ? 6 : 2, (v / max) * 100)}%;background:${COLORS[i % COLORS.length]}"></i><span class="db-l">${i + 1}일차</span></button>`).join('')}</div></div>`;
+}
+function expModal(r, e, pre = {}) {
   const isNew = !e;
-  e = e || { title: '', amount: '', cat: 'food', payer: meId(r), split: r.members.map((m) => m.id) };
+  e = e || { title: '', amount: '', cat: 'food', payer: meId(r), split: r.members.map((m) => m.id), day: pre.day ?? tripToday(r), pid: pre.pid || '' };
+  const curDay = e.day ?? expDay(r, e), planned = r.places.filter((p) => p.day).sort((a, b) => a.day - b.day || (a.order || 0) - (b.order || 0));
   const form = openModal({
     title: isNew ? '지출 기록' : '지출 수정',
     body: `<label class="field"><span>금액</span><input class="amount-input num" type="text" name="amount" required inputmode="numeric" autocomplete="off" value="${e.amount ? Number(e.amount).toLocaleString('ko-KR') : ''}" placeholder="0원"></label>
       <div class="faint per" style="font-size:13px;margin-top:-8px"></div>
       <label class="field"><span>무엇에 썼나요</span><input type="text" name="title" required maxlength="60" value="${esc(e.title)}" placeholder="예: 흑돼지 저녁"></label>
       <div class="field"><span>분류</span><div class="chips" style="flex-wrap:wrap">${ECATS.map((c) => `<label class="chip ${e.cat === c.k ? 'on' : ''}"><input type="radio" name="cat" value="${c.k}" ${e.cat === c.k ? 'checked' : ''}><span class="dot" style="--c:${c.c}"></span>${c.n}</label>`).join('')}</div></div>
+      <div class="grid2"><label class="field"><span>언제</span><select name="day"><option value="0">여행 전 · 공통</option>${Array.from({ length: dayCount(r) }, (_, i) => `<option value="${i + 1}" ${curDay === i + 1 ? 'selected' : ''}>${i + 1}일차 · ${dayLabel(r, i + 1)}</option>`).join('')}</select></label>
+        <label class="field"><span>어디서 <small>· 선택</small></span><select name="pid"><option value="">장소 없음</option>${planned.map((p) => `<option value="${p.id}" data-d="${p.day}" ${e.pid === p.id ? 'selected' : ''}>${p.day}일차 · ${esc(p.name)}</option>`).join('')}</select></label></div>
       <div class="field"><span>누가 냈나요</span><div class="chips" style="flex-wrap:wrap">${r.members.map((m) => `<label class="chip ${e.payer === m.id ? 'on' : ''}"><input type="radio" name="payer" value="${m.id}" ${e.payer === m.id ? 'checked' : ''}>${esc(m.name)}</label>`).join('')}</div></div>
       <div class="field"><span>누구와 나누나요</span><div class="chips" style="flex-wrap:wrap">${r.members.map((m) => `<label class="chip ${e.split.includes(m.id) ? 'on' : ''}"><input type="checkbox" name="split" value="${m.id}" ${e.split.includes(m.id) ? 'checked' : ''}>${esc(m.name)}</label>`).join('')}</div></div>
       <div class="field"><span>영수증 사진 <small>· 선택</small></span>
@@ -1145,7 +1167,7 @@ function expModal(r, e) {
       const amount = +String(fd.get('amount')).replace(/[^\d]/g, '');
       if (!amount) { toast('금액을 적어주세요'); return false; }
       if (!split.length) { toast('나눌 사람을 한 명 이상 골라주세요'); return false; }
-      const v = { title: fd.get('title').trim(), amount, cat: fd.get('cat'), payer: fd.get('payer'), split };
+      const v = { title: fd.get('title').trim(), amount, cat: fd.get('cat'), payer: fd.get('payer'), split, day: +fd.get('day') || 0, pid: fd.get('pid') || '' };
       const files = fd.getAll('files').filter((x) => x.size).slice(0, 4);
       const done = (photos) => {
         v.photos = [...(e.photos || []), ...photos];
@@ -1156,6 +1178,7 @@ function expModal(r, e) {
     },
   });
   hydratePhotos();
+  form.pid.addEventListener('change', () => { const o = form.pid.selectedOptions[0]; if (o?.dataset.d) form.day.value = o.dataset.d; });
   const amt = form.amount, per = $('.per', form);
   const upd = () => {
     const n = +amt.value.replace(/[^\d]/g, ''); const k = $$('input[name=split]:checked', form).length;
@@ -1544,7 +1567,8 @@ document.addEventListener('click', (ev) => {
       items.forEach((x, k) => { x.order = k; x.upd = now(); }); touch(r); render();
     },
     'copy-plan': () => copy(planText(r), '일정을 복사했어요. 단체톡에 붙여넣어 보세요!'),
-    'add-exp': () => expModal(r),
+    'add-exp': () => expModal(r, null, el.dataset.d ? { day: +el.dataset.d, pid: el.dataset.pid || '' } : {}),
+    'jump-day': () => $(`#exp-d${el.dataset.d}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
     'add-doc': () => docModal(r),
     'open-doc': () => docView(r, r.docs.find((d) => d.id === el.dataset.id)),
     'edit-exp': () => expModal(r, r.expenses.find((e) => e.id === el.dataset.id)),
