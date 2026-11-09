@@ -71,7 +71,7 @@ const I = (n, s = 18, sw = 1.7) => `<svg class="i" width="${s}" height="${s}" vi
 
 // ───────── 상태 ─────────
 let S = load();
-const ui = { filter: 'all', sort: 'new', view: 'map', openCmt: {}, q: '' };
+const ui = { planDay: 0, planMap: true, filter: 'all', sort: 'new', view: 'map', openCmt: {}, q: '' };
 const failed = {};
 let mapCtl = null;
 
@@ -410,15 +410,16 @@ function routeUrl(r, items) {
   return `https://www.google.com/maps/dir/?api=1&origin=${enc(loc(items[0]))}&destination=${enc(loc(items[items.length - 1]))}${w ? '&waypoints=' + enc(w) : ''}`;
 }
 // 지도 위젯 — 렌더 사이에도 살아남도록 DOM 노드를 보관했다가 다시 꽂는다
-function pinData(r) {
-  return r.places.filter((p) => p.lat).map((p) => {
+function pinData(r, day) {
+  return r.places.filter((p) => p.lat && (!day || p.day === day)).map((p) => {
     const day = p.day ? r.places.filter((x) => x.day === p.day).sort(sortPlan).indexOf(p) + 1 : 0;
     return { p, color: p.day ? COLORS[(p.day - 1) % COLORS.length] : cat(p.cat).c, label: day ? String(day) : '', dim: !p.day };
   });
 }
-function lines(r) {
+function lines(r, day) {
   const out = [];
   for (let d = 1; d <= dayCount(r); d++) {
+    if (day && d !== day) continue;
     const pts = r.places.filter((p) => p.day === d && p.lat).sort(sortPlan);
     if (pts.length > 1) out.push({ color: COLORS[(d - 1) % COLORS.length], pts });
   }
@@ -435,8 +436,10 @@ function pinEl(pd) {
 function createMap(r) {
   const el = document.createElement('div'); el.id = 'map';
   const want = provider(r);
-  const ctl = { el, roomId: r.id, pv: want, kind: null, r, impl: null, fitted: false,
-    update(nr) { this.r = nr; this.impl?.draw(nr); },
+  const ctl = { el, roomId: r.id, pv: want, kind: null, r, impl: null, fitted: false, day: null, sel: null,
+    update(nr) { this.r = nr; this.impl?.draw(nr, false, this.day); if (this.sel) this.impl?.hl(this.sel, true); },
+    setDay(d) { d = d || null; if (d === this.day) return; this.day = d; this.impl?.draw(this.r, true, d); if (this.sel) this.impl?.hl(this.sel, true); },
+    select(id) { if (this.sel && this.sel !== id) this.impl?.hl(this.sel, false); this.sel = id; if (id) { this.impl?.hl(id, true); this.impl?.focus(id); } },
     focus(id) { this.impl?.focus(id); },
     hl(id, on) { this.impl?.hl(id, on); },
     resize() { this.impl?.resize(); },
@@ -447,7 +450,7 @@ function createMap(r) {
     if (ctl.dead) return;
     ctl.kind = ok ? want : 'osm';
     ctl.impl = (ok ? (want === 'kakao' ? kakaoImpl : googleImpl) : osmImpl)(el, onPick);
-    requestAnimationFrame(() => { if (!ctl.dead) ctl.impl.draw(ctl.r, true); });
+    requestAnimationFrame(() => { if (ctl.dead) return; ctl.impl.draw(ctl.r, true, ctl.day); if (ctl.sel) { ctl.impl.hl(ctl.sel, true); ctl.impl.focus(ctl.sel); } });
     $('.map-src')?.replaceChildren(document.createTextNode(PNAME[ctl.kind]));
   });
   return ctl;
@@ -458,10 +461,10 @@ function osmImpl(el, onPick) {
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(m);
   let layer = L.layerGroup().addTo(m), mk = {};
   return {
-    draw(r, fit) {
+    draw(r, fit, day) {
       layer.clearLayers(); mk = {};
-      const pd = pinData(r);
-      lines(r).forEach((l) => L.polyline(l.pts.map((p) => [p.lat, p.lng]), { color: l.color, weight: 3, opacity: 0.75, dashArray: '2 7', lineCap: 'round' }).addTo(layer));
+      const pd = pinData(r, day);
+      lines(r, day).forEach((l) => L.polyline(l.pts.map((p) => [p.lat, p.lng]), { color: l.color, weight: 3, opacity: 0.75, dashArray: '2 7', lineCap: 'round' }).addTo(layer));
       pd.forEach((d) => {
         const s = d.dim ? 16 : 28;
         const icon = L.divIcon({ className: '', html: pinEl(d).outerHTML, iconSize: [s, s], iconAnchor: [s / 2, s] });
@@ -481,10 +484,10 @@ function kakaoImpl(el, onPick) {
   m.addControl(new K.ZoomControl(), K.ControlPosition.RIGHT);
   let objs = [], mk = {};
   return {
-    draw(r, fit) {
+    draw(r, fit, day) {
       objs.forEach((o) => o.setMap(null)); objs = []; mk = {};
-      lines(r).forEach((l) => objs.push(new K.Polyline({ map: m, path: l.pts.map((p) => new K.LatLng(p.lat, p.lng)), strokeWeight: 3, strokeColor: l.color, strokeOpacity: 0.8, strokeStyle: 'shortdot' })));
-      const pd = pinData(r), b = new K.LatLngBounds();
+      lines(r, day).forEach((l) => objs.push(new K.Polyline({ map: m, path: l.pts.map((p) => new K.LatLng(p.lat, p.lng)), strokeWeight: 3, strokeColor: l.color, strokeOpacity: 0.8, strokeStyle: 'shortdot' })));
+      const pd = pinData(r, day), b = new K.LatLngBounds();
       pd.forEach((d) => {
         const pos = new K.LatLng(d.p.lat, d.p.lng); b.extend(pos);
         const c = pinEl(d); c.style.cursor = 'pointer'; c.onclick = () => onPick(d.p.id);
@@ -505,10 +508,10 @@ function googleImpl(el, onPick) {
   let objs = [], mk = {};
   const icon = (d, big) => ({ path: G.SymbolPath.CIRCLE, scale: (d.dim ? 6 : 11) * (big ? 1.35 : 1), fillColor: d.color, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 });
   return {
-    draw(r, fit) {
+    draw(r, fit, day) {
       objs.forEach((o) => o.setMap(null)); objs = []; mk = {};
-      lines(r).forEach((l) => objs.push(new G.Polyline({ map: m, path: l.pts.map((p) => ({ lat: p.lat, lng: p.lng })), strokeOpacity: 0, icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.85, strokeColor: l.color, scale: 3 }, offset: '0', repeat: '12px' }] })));
-      const pd = pinData(r), b = new G.LatLngBounds();
+      lines(r, day).forEach((l) => objs.push(new G.Polyline({ map: m, path: l.pts.map((p) => ({ lat: p.lat, lng: p.lng })), strokeOpacity: 0, icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.85, strokeColor: l.color, scale: 3 }, offset: '0', repeat: '12px' }] })));
+      const pd = pinData(r, day), b = new G.LatLngBounds();
       pd.forEach((d) => {
         const pos = { lat: d.p.lat, lng: d.p.lng }; b.extend(pos);
         const o = new G.Marker({ map: m, position: pos, title: d.p.name, icon: icon(d), label: d.label ? { text: d.label, color: '#fff', fontSize: '11px', fontWeight: '700' } : null, zIndex: d.dim ? 1 : 2 });
@@ -559,11 +562,15 @@ async function reverseAddr(lat, lng) {
     return (js.display_name || '').split(',').slice(0, 5).reverse().map((s) => s.trim()).join(' ');
   } catch (e) { return ''; }
 }
-function pickOnMap(id) {
-  const card = $(`.place[data-pid="${id}"]`);
-  if (card && card.offsetParent) { card.scrollIntoView({ behavior: 'smooth', block: isWide() ? 'center' : 'start' }); card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash'); }
-  else { ui.sel = id; const box = $('#map-sel'); const r = room(); const p = r?.places.find((x) => x.id === id); if (box && p) box.innerHTML = placeCard(r, p); }
+function selPlace(id, { scroll, focus = true } = {}) {
+  ui.sel = id;
+  $$('.place.sel,.stop.sel').forEach((x) => x.classList.remove('sel'));
+  const els = $$(`.place[data-pid="${id}"],.stop[data-pid="${id}"]`); els.forEach((x) => x.classList.add('sel'));
+  if (focus) mapCtl?.select(id); else if (mapCtl) { if (mapCtl.sel && mapCtl.sel !== id) mapCtl.impl?.hl(mapCtl.sel, false); mapCtl.sel = id; mapCtl.impl?.hl(id, true); }
+  const card = els.find((x) => x.offsetParent);
+  if (scroll && card) { card.scrollIntoView({ behavior: 'smooth', block: isWide() ? 'center' : 'start' }); card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash'); }
 }
+function pickOnMap(id) { selPlace(id, { scroll: true, focus: false }); }
 
 // ───────── 라우팅 ─────────
 function route() {
@@ -573,7 +580,7 @@ function route() {
   return { page: 'home' };
 }
 const go = (h) => { if (location.hash === h) render(); else location.hash = h; };
-window.addEventListener('hashchange', () => { closeModal(); checkJoin(); ui.sel = null; render(); scrollTo(0, 0); });
+window.addEventListener('hashchange', () => { closeModal(); checkJoin(); ui.sel = null; if (mapCtl) mapCtl.sel = null; render(); scrollTo(0, 0); });
 matchMedia('(min-width:1181px)').addEventListener('change', () => render());
 addEventListener('scroll', () => $('.topbar')?.classList.toggle('scrolled', scrollY > 4), { passive: true });
 
@@ -701,6 +708,7 @@ function render() {
   if (slot && r) {
     if (mapCtl && !mapCtl.dead && mapCtl.roomId === r.id && mapCtl.pv === provider(r)) { slot.replaceWith(mapCtl.el); mapCtl.update(r); mapCtl.resize(); }
     else { mapCtl?.destroy(); mapCtl = createMap(r); slot.replaceWith(mapCtl.el); }
+    mapCtl.setDay(rt.tab === 'plan' ? ui.planDay : null);
     if (mapCtl.kind) $('.map-src')?.replaceChildren(document.createTextNode(PNAME[mapCtl.kind]));
   }
   if (r && rt.tab === 'chat') { const el = $('.msgs'); if (el) el.scrollTop = el.scrollHeight; markSeen(r); }
@@ -900,7 +908,7 @@ function placesTab(r) {
 function placeCard(r, p) {
   const c = cat(p.cat), by = member(r, p.by), me = meId(r), on = p.hearts.includes(me), open = ui.openCmt[p.id];
   const days = dayCount(r);
-  return `<article class="place" data-pid="${p.id}" data-s="${esc(`${p.name} ${p.addr || ''} ${p.memo || ''} ${by.name}`.toLowerCase())}">
+  return `<article class="place ${ui.sel === p.id ? 'sel' : ''}" data-act="sel-place" data-id="${p.id}" data-pid="${p.id}" data-s="${esc(`${p.name} ${p.addr || ''} ${p.memo || ''} ${by.name}`.toLowerCase())}">
     <div class="place-meta"><span class="dot" style="--c:${c.c}"></span><span>${c.n}</span><span>·</span>${av(by, 18)}<span>${esc(by.name)}</span>${p.day ? `<span class="sp"></span>${p.visited ? '<span class="tag">다녀옴</span>' : ''}<span class="tag accent">${p.day}일차${p.time ? ' ' + p.time : ''}</span>` : ''}</div>
     <h3 class="place-name">${esc(p.name)}</h3>
     ${p.addr ? `<div class="place-addr">${esc(p.addr)}</div>` : ''}
@@ -1037,17 +1045,18 @@ function planTab(r) {
   const lock = !!r.confirmed, planned = r.places.filter((p) => p.day), visited = planned.filter((p) => p.visited).length;
   return `<div class="sec"><div><h2>우리 일정</h2><p>${lock ? '확정된 일정이에요. 다녀온 곳은 체크해 보세요.' : '모아둔 곳을 날짜에 끌어다 놓고, 순서와 시간을 맞춰요.'}</p></div>
     <div class="acts"><button class="btn" data-act="copy-plan">${I('copy', 16)}단체톡용 복사</button>${lock ? '' : `<button class="btn pri" data-act="confirm-plan" ${planned.length ? '' : 'disabled style="opacity:.5"'}>${I('check', 16, 2.2)}일정 확정</button>`}</div></div>
+  <div class="places-layout ${isWide() ? 'split' : 'stack'} plan-layout"><div class="plan-main">
   ${lock ? `<div class="locked">${I('check', 18, 2.2)}<span><b>일정 확정</b> · ${esc(member(r, r.confirmed.by).name)}님이 ${timeAgo(r.confirmed.at)} 확정했어요</span><span class="faint">다녀온 곳 ${visited}/${planned.length}</span><span class="sp"></span><button class="btn sm" data-act="reopen-plan">다시 열기</button></div>` : ''}
   <div class="days">
   ${Array.from({ length: days }, (_, i) => {
     const d = i + 1, items = dayItems(r, d), col = COLORS[i % COLORS.length];
-    return `<section class="day" data-drop="${d}">
+    return `<section class="day ${ui.planDay === d ? 'on' : ''}" data-drop="${d}" id="day-${d}">
       <div class="day-head"><span class="day-no" style="color:${col}">${d}일차</span><span class="day-date">${dayLabel(r, d)}</span><span class="sp"></span>
         <button class="day-spent ${daySpent(r, d) ? '' : 'zero'}" data-act="add-exp" data-d="${d}" title="${d}일차 지출 추가">${I('wallet', 14)}${daySpent(r, d) ? won(daySpent(r, d)) : '지출'}<span class="plus">＋</span></button>
         ${items.length > 1 ? `<a class="btn ghost sm" href="${esc(routeUrl(r, items))}" target="_blank" rel="noopener" title="${PNAME[provider(r)]} 경로">${I('route', 16)}경로</a>` : ''}</div>
-      ${items.length ? `<ol class="stops">${items.map((p, j) => `<li class="stop ${p.visited ? 'visited' : ''}" ${lock ? '' : `draggable="true" data-drag="${p.id}"`} style="--c:${col}">
+      ${items.length ? `<ol class="stops">${items.map((p, j) => `<li class="stop ${p.visited ? 'visited' : ''} ${ui.sel === p.id ? 'sel' : ''}" data-pid="${p.id}" ${lock ? '' : `draggable="true" data-drag="${p.id}"`} style="--c:${col}">
         <span class="stop-no">${j + 1}</span>
-        <div class="grow"><div class="stop-name"><span class="dot" style="--c:${cat(p.cat).c}"></span>${esc(p.name)}</div>
+        <div class="grow"><button type="button" class="stop-name" data-act="sel-place" data-id="${p.id}"><span class="dot" style="--c:${cat(p.cat).c}"></span>${esc(p.name)}${p.lat ? '' : '<span class="faint" style="font-size:11px;font-weight:500">위치 없음</span>'}</button>
           <div class="stop-sub"><input type="time" value="${p.time || ''}" data-change="time" data-id="${p.id}" aria-label="${esc(p.name)} 시간" ${lock ? 'disabled' : ''}>${p.hearts.length ? `<span class="faint" style="font-size:12px">♥ ${p.hearts.length}</span>` : ''}<button class="stop-exp ${placeSpent(r, p.id) ? 'has' : ''}" data-act="add-exp" data-d="${d}" data-pid="${p.id}" title="${esc(p.name)}에서 쓴 돈 기록">${placeSpent(r, p.id) ? won(placeSpent(r, p.id)) : '＋ 지출'}</button></div></div>
         ${lock ? `<button class="visit ${p.visited ? 'on' : ''}" data-act="visit" data-id="${p.id}" aria-pressed="${!!p.visited}" aria-label="${esc(p.name)} 다녀왔어요" title="다녀왔어요">${I('check', 15, 2.6)}</button>`
           : `<div class="stop-ctrl"><button data-act="visit" data-id="${p.id}" aria-label="다녀왔어요 표시" title="다녀왔어요">${I('check', 16)}</button><button data-act="move" data-id="${p.id}" data-dir="-1" aria-label="위로">${I('up', 16)}</button><button data-act="move" data-id="${p.id}" data-dir="1" aria-label="아래로">${I('down', 16)}</button><button data-act="set-day" data-id="${p.id}" data-d="0" aria-label="일정에서 빼기">${I('x', 16)}</button></div>`}
@@ -1061,7 +1070,18 @@ function planTab(r) {
     ${pending.length ? `<div class="tray-items">${pending.map((p) => `<span class="tray-item" draggable="true" data-drag="${p.id}"><span class="dot" style="--c:${cat(p.cat).c}"></span>${esc(p.name)}${p.hearts.length ? ` <span class="faint">♥${p.hearts.length}</span>` : ''}
       <select data-change="assign-one" data-id="${p.id}" aria-label="${esc(p.name)} 날짜"><option value="">날짜</option>${Array.from({ length: days }, (_, i) => `<option value="${i + 1}">${i + 1}일차</option>`).join('')}</select></span>`).join('')}</div>`
       : `<p class="faint" style="margin:8px 0 0;font-size:14px">모든 장소가 일정에 들어갔어요. 일정에서 빼려면 여기로 끌어다 놓으세요.</p>`}
-  </section>`}`;
+  </section>`}
+  </div>${planMap(r)}</div>`;
+}
+function planMap(r) {
+  const n = dayCount(r), cur = ui.planDay > n ? 0 : ui.planDay;
+  return `<div class="mapblock plan-map">
+    <div class="daychips"><div class="chips">
+      <button class="chip ${!cur ? 'on' : ''}" data-act="plan-day" data-d="0">전체</button>
+      ${Array.from({ length: n }, (_, i) => `<button class="chip ${cur === i + 1 ? 'on' : ''}" data-act="plan-day" data-d="${i + 1}"><span class="dot" style="--c:${COLORS[i % COLORS.length]}"></span>${i + 1}일차</button>`).join('')}
+    </div>${isWide() ? '' : `<button class="btn ghost sm icon" data-act="plan-map" aria-label="${ui.planMap ? '지도 접기' : '지도 펼치기'}" title="${ui.planMap ? '지도 접기' : '지도 펼치기'}">${I(ui.planMap ? 'up' : 'map', 16)}</button>`}</div>
+    ${ui.planMap || isWide() ? `<div class="${isWide() ? 'map-pane' : 'map-mobile'}"><div id="map-slot"></div></div>` : ''}
+  </div>`;
 }
 function planText(r) {
   let t = `✈️ ${r.name}\n📍 ${r.dest} · ${range(r)} (${nights(r)})\n`;
@@ -1543,9 +1563,23 @@ document.addEventListener('click', (ev) => {
     notif: () => Notification.requestPermission().then((p) => { toast(p === 'granted' ? '창을 내려놔도 새 메시지를 알려드릴게요' : '알림이 꺼져 있어요. 브라우저 설정에서 켤 수 있어요'); render(); }),
     'add-place': () => placeModal(r),
     'place-menu': () => placeMenu(r, P(el.dataset.id)),
+    'sel-place': () => {
+      if (!r || ev.target.closest('input,textarea,select,form')) return;
+      const p = P(el.dataset.id); if (!p) return;
+      if (!p.lat) { selPlace(p.id, { focus: false }); return toast('위치 정보가 없는 장소예요'); }
+      if (route().tab === 'plan' && ui.planDay && ui.planDay !== p.day) { ui.planDay = p.day || 0; render(); }
+      if (route().tab === 'plan' && !ui.planMap && !isWide()) { ui.planMap = true; render(); }
+      if (route().tab === 'places' && !isWide() && ui.view !== 'map') { ui.view = 'map'; render(); }
+      selPlace(p.id);
+    },
+    'plan-day': () => {
+      ui.planDay = +el.dataset.d; render();
+      if (ui.planDay) $(`#day-${ui.planDay}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    },
+    'plan-map': () => { ui.planMap = !ui.planMap; render(); },
     locate: () => {
-      if (!isWide() && ui.view !== 'map') { ui.view = 'map'; render(); setTimeout(() => mapCtl?.focus(el.dataset.id), 400); }
-      mapCtl?.focus(el.dataset.id); mapCtl?.hl(el.dataset.id, true); setTimeout(() => mapCtl?.hl(el.dataset.id, false), 1500);
+      if (!isWide() && ui.view !== 'map') { ui.view = 'map'; render(); }
+      selPlace(el.dataset.id);
     },
     heart: () => { const p = P(el.dataset.id), me = meId(r); p.hearts = p.hearts.includes(me) ? p.hearts.filter((h) => h !== me) : [...p.hearts, me]; touch(r, p); render(); },
     cmt: () => { ui.openCmt[el.dataset.id] = !ui.openCmt[el.dataset.id]; render(); if (ui.openCmt[el.dataset.id]) $(`[data-form=cmt][data-id="${el.dataset.id}"] input`)?.focus({ preventScroll: true }); },
@@ -1647,8 +1681,8 @@ document.addEventListener('input', (ev) => {
   else none?.remove();
 });
 // 카드 ↔ 지도 핀 강조
-document.addEventListener('mouseover', (ev) => { const c = ev.target.closest?.('.place[data-pid]'); if (c && c !== hover.el) { hover.el && mapCtl?.hl(hover.el.dataset.pid, false); hover.el = c; mapCtl?.hl(c.dataset.pid, true); } });
-document.addEventListener('mouseout', (ev) => { if (hover.el && !hover.el.contains(ev.relatedTarget)) { mapCtl?.hl(hover.el.dataset.pid, false); hover.el = null; } });
+document.addEventListener('mouseover', (ev) => { const c = ev.target.closest?.('.place[data-pid]'); if (c && c !== hover.el) { hover.el && hover.el.dataset.pid !== mapCtl?.sel && mapCtl?.hl(hover.el.dataset.pid, false); hover.el = c; mapCtl?.hl(c.dataset.pid, true); } });
+document.addEventListener('mouseout', (ev) => { if (hover.el && !hover.el.contains(ev.relatedTarget)) { hover.el.dataset.pid !== mapCtl?.sel && mapCtl?.hl(hover.el.dataset.pid, false); hover.el = null; } });
 const hover = { el: null };
 // 일정 끌어다 놓기
 let dragId = null;
