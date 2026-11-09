@@ -1390,6 +1390,17 @@ function shrink(file, max = 900, q = 0.75) {
 }
 
 // ───── 설정 ─────
+// 홈 화면에 설치 (안드로이드·PC 크롬은 버튼으로, 아이폰은 안내로)
+let installEvt = null;
+addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; });
+const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+function installRow() {
+  if (standalone()) return '';
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  if (!installEvt && !ios) return '';
+  return `<div class="group-title">앱으로 쓰기</div><div class="group"><div class="item"><div class="grow"><b>홈 화면에 추가</b><div class="faint" style="font-size:13px">${ios ? 'Safari 아래 공유 버튼 → "홈 화면에 추가"를 눌러주세요.' : '앱처럼 바로 열리고, 인터넷이 약해도 일정·티켓을 볼 수 있어요.'}</div></div>${ios ? '' : '<button class="btn sm" data-act="install">설치</button>'}</div></div>`;
+}
+if ('serviceWorker' in navigator && location.protocol === 'https:') addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 function settingsTab(r) {
   const k = mapKeys(), pv = provider(r);
   return `<div class="sec"><div><h2>여행방 설정</h2><p>기본 정보, 일행, 지도와 공유를 관리해요.</p></div></div>
@@ -1425,6 +1436,7 @@ function settingsTab(r) {
     <div class="item"><div class="grow"><b>가져오기</b><div class="faint" style="font-size:13px">받은 링크나 백업 파일을 합쳐요</div></div><button class="btn sm" data-act="import">${I('upload', 15)}가져오기</button></div>
   </div>
 
+  ${installRow()}
   <div class="group-title" style="color:var(--danger)">위험 구역</div>
   <div class="group"><div class="item"><div class="grow"><b>이 여행방 지우기</b><div class="faint" style="font-size:13px">이 기기에서만 지워져요. 친구들 기기에는 남아 있어요.</div></div><button class="btn sm danger" data-act="del-room">지우기</button></div></div>`;
 }
@@ -1681,6 +1693,7 @@ document.addEventListener('click', (ev) => {
       if (ui.planDay) $(`#day-${ui.planDay}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     },
     'plan-map': () => { ui.planMap = !ui.planMap; render(); },
+    install: () => { installEvt?.prompt(); installEvt?.userChoice.finally(() => { installEvt = null; render(); }); },
     'today-day': () => { ui.td = ui.td || {}; ui.td[r.id] = Math.max(1, Math.min(dayCount(r), +el.dataset.d)); render(); },
     'add-date-opt': () => dateOptModal(r),
     'vote-opt': () => { const o = (r[el.dataset.k] || []).find((x) => x.id === el.dataset.id); if (!o) return; const me = meId(r); o.votes = o.votes || []; const i = o.votes.indexOf(me); if (i >= 0) o.votes.splice(i, 1); else o.votes.push(me); touch(r, o); render(); },
