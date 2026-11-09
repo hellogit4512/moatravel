@@ -717,6 +717,7 @@ function render() {
   const y = scrollY;
   $('#app').innerHTML = `<div class="shell ${r ? 'is-room' : 'is-home'}">${side(rt, r)}<div class="content">${topbar(r)}<main class="main" id="main">${r ? roomPage(r, rt.tab) : home()}</main></div>${r ? bnav(rt.tab, r) : ''}</div>`;
   document.body.classList.toggle('is-home', !r);
+  if (S.mapH) document.documentElement.style.setProperty('--map-h', S.mapH + 'px');
   // 지도 다시 꽂기
   const slot = $('#map-slot');
   if (slot && r) {
@@ -924,7 +925,7 @@ function placesTab(r) {
     ${showList ? `<div class="plist">${list.length ? list.map((p) => placeCard(r, p)).join('') : r.places.length ? empty('search', '조건에 맞는 장소가 없어요', '다른 분류를 골라보세요.') : empty('pin', '아직 모아둔 곳이 없어요', `${PNAME[pv]}에서 검색해서 가고 싶은 곳을 제안해보세요.`, `<button class="btn pri" data-act="add-place">${I('plus')}첫 장소 제안하기</button>`)}
       <p class="faint" style="text-align:center;font-size:13px;margin:12px 0 0">하트는 순위를 정하는 참고예요. 최종 일정은 함께 이야기해서 정해요.</p></div>` : ''}
     ${showMap ? `<div class="mapblock">
-      <div class="${wide ? 'map-pane' : 'map-mobile'}"><div id="map-slot"></div></div>
+      <div class="${wide ? 'map-pane' : 'map-mobile'}"><div id="map-slot"></div></div>${wide ? '' : '<div class="map-grip" data-grip role="slider" aria-label="지도 크기 조절 (끌어서 조절)" title="끌어서 지도 크기 조절"><i></i></div>'}
       ${wide ? `<div class="row faint" style="font-size:12px;margin-top:8px;gap:6px">${I('map', 14)}<span class="map-src">${PNAME[pv]}</span><span>· 숫자는 일정 순서, 작은 점은 날짜 미정</span></div>` : ''}
     </div>` : ''}
   </div>`;
@@ -1103,7 +1104,7 @@ function todayTab(r) {
     <a class="btn ghost icon sm" href="${esc(navLink(r, p))}" target="_blank" rel="noopener" aria-label="${esc(p.name)} 길찾기">${I('route', 16)}</a>
   </li>`).join('')}</ol>`
   : `<div class="card">${empty('cal', `${d}일차 일정이 비어 있어요`, '우리 일정에서 이날 갈 곳을 넣어두면, 여기서 순서대로 안내해요.', `<button class="btn pri" data-act="tab" data-k="plan">${I('cal')}일정 짜러 가기</button>`)}</div>`}
-  <div class="mapblock today-map"><div class="map-mobile"><div id="map-slot"></div></div></div>
+  <div class="mapblock today-map"><div class="map-mobile"><div id="map-slot"></div></div><div class="map-grip" data-grip role="slider" aria-label="지도 크기 조절 (끌어서 조절)" title="끌어서 지도 크기 조절"><i></i></div></div>
   <div class="today-g">
     <button class="card today-tile" data-act="add-exp" data-d="${d}"><span class="k">${I('wallet', 16)}이날 쓴 돈</span><b>${won(spent)}</b><span class="faint">＋ 빠르게 기록</span></button>
     <button class="card today-tile" data-act="tab" data-k="docs"><span class="k">${I('ticket', 16)}이날 쓸 티켓</span><b>${docs.length}장</b><span class="faint">${docs.length ? esc(docs.map((x) => x.title).join(', ')) : '보관함 열기'}</span></button>
@@ -1152,7 +1153,7 @@ function planMap(r) {
       <button class="chip ${!cur ? 'on' : ''}" data-act="plan-day" data-d="0">전체</button>
       ${Array.from({ length: n }, (_, i) => `<button class="chip ${cur === i + 1 ? 'on' : ''}" data-act="plan-day" data-d="${i + 1}"><span class="dot" style="--c:${COLORS[i % COLORS.length]}"></span>${i + 1}일차</button>`).join('')}
     </div>${isWide() ? '' : `<button class="btn ghost sm icon" data-act="plan-map" aria-label="${ui.planMap ? '지도 접기' : '지도 펼치기'}" title="${ui.planMap ? '지도 접기' : '지도 펼치기'}">${I(ui.planMap ? 'up' : 'map', 16)}</button>`}</div>
-    ${ui.planMap || isWide() ? `<div class="${isWide() ? 'map-pane' : 'map-mobile'}"><div id="map-slot"></div></div>` : ''}
+    ${ui.planMap || isWide() ? `<div class="${isWide() ? 'map-pane' : 'map-mobile'}"><div id="map-slot"></div></div>${isWide() ? '' : '<div class="map-grip" data-grip role="slider" aria-label="지도 크기 조절 (끌어서 조절)" title="끌어서 지도 크기 조절"><i></i></div>'}` : ''}
   </div>`;
 }
 function planText(r) {
@@ -1858,3 +1859,23 @@ document.addEventListener('drop', (ev) => {
 applyTheme();
 matchMedia('(prefers-color-scheme:dark)').addEventListener('change', () => { if (S.theme === 'auto') { applyTheme(); render(); } });
 if (/^#(join|s)=/.test(location.hash)) checkJoin(); else render();
+
+// 지도 크기: 아래 손잡이를 끌어서 사람마다(기기마다) 조절, 두 번 누르면 기본 크기로
+(() => {
+  let st = null;
+  const clampH = (h) => Math.round(Math.max(150, Math.min(innerHeight * 0.75, h)));
+  document.addEventListener('pointerdown', (e) => {
+    const g = e.target.closest?.('[data-grip]'); if (!g) return;
+    const box = g.previousElementSibling; if (!box) return;
+    e.preventDefault(); g.setPointerCapture(e.pointerId);
+    st = { y: e.clientY, h: box.getBoundingClientRect().height, g }; g.classList.add('on');
+  });
+  document.addEventListener('pointermove', (e) => {
+    if (!st) return;
+    const h = clampH(st.h + e.clientY - st.y); st.cur = h;
+    document.documentElement.style.setProperty('--map-h', h + 'px'); mapCtl?.resize();
+  });
+  const end = () => { if (!st) return; st.g.classList.remove('on'); if (st.cur) { S.mapH = st.cur; save(); } st = null; mapCtl?.resize(); };
+  document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end);
+  document.addEventListener('dblclick', (e) => { if (!e.target.closest?.('[data-grip]')) return; delete S.mapH; save(); document.documentElement.style.removeProperty('--map-h'); mapCtl?.resize(); toast('지도 크기를 기본으로 돌렸어요'); });
+})();

@@ -589,3 +589,13 @@ h3{margin:0;font-size:16px;font-weight:700;letter-spacing:-.015em}
 .plan-pack{margin-top:28px;padding-top:6px;border-top:1px dashed var(--line)}
 .home-sec{margin-top:8px}.home-next{margin-bottom:16px;width:100%}.foot .link{background:none;border:0;cursor:pointer;font:inherit;text-decoration:underline;text-underline-offset:3px}
 .home-next{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;background:var(--surface);border:1px solid var(--line);text-align:left;cursor:pointer}.home-next:hover{border-color:var(--accent)}
+
+/* 지도 크기 조절 손잡이 */
+.map-grip{display:flex;justify-content:center;align-items:center;height:22px;margin-top:2px;cursor:ns-resize;touch-action:none;user-select:none}
+.map-grip i{width:44px;height:5px;border-radius:99px;background:var(--line-2);transition:background .15s,width .15s}
+.map-grip:hover i,.map-grip.on i{background:var(--accent);width:60px}
+.places-layout.stack .map-mobile,.plan-layout.stack .plan-map .map-mobile,.today-map .map-mobile{height:var(--map-h,clamp(200px,32dvh,340px))}
+@media (max-width:760px){.places-layout.stack .map-mobile{height:var(--map-h,clamp(200px,32dvh,340px))}}
+.places-layout.stack .mapblock{padding-bottom:0}
+.places-layout.stack .place{scroll-margin-top:calc(var(--top) + var(--map-h, clamp(200px,32dvh,340px)) + 44px)}
+.plan-layout.stack .day{scroll-margin-top:calc(var(--top) + var(--map-h, clamp(200px,32dvh,340px)) + 90px)}
