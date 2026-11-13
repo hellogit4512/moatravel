@@ -633,3 +633,16 @@ h3{margin:0;font-size:16px;font-weight:700;letter-spacing:-.015em}
 @media (hover:none){.sheet .c-x .btn{opacity:.7}.sheet-help{display:none}}
 @media (max-width:760px){.sheet{font-size:14px;min-width:900px}.sheet-wrap{max-height:none;margin:0 -16px;border-radius:0;border-left:0;border-right:0}.sheet .c-day{width:84px}.sheet .c-name{left:84px;min-width:140px}}
 .sheet .c-day{min-width:88px}.sheet .c-order{min-width:54px}.sheet .c-time{min-width:74px}.sheet .c-cat{min-width:82px}.sheet .c-ro{min-width:72px}@media (max-width:760px){.sheet .c-day{min-width:84px}.sheet .c-name{left:84px}}
+
+/* 표 칸 너비 조절 (고정 레이아웃 + 끌기 손잡이) */
+.sheet{table-layout:fixed;min-width:0!important}
+.sheet .c-day,.sheet .c-order,.sheet .c-time,.sheet .c-cat,.sheet .c-ro,.sheet .c-name,.sheet .c-addr,.sheet .c-memo{min-width:0!important;width:auto}
+.sheet .c-name{left:var(--c0)!important}
+.sheet th{position:sticky;overflow:visible}
+.sheet td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sheet th.c-ro,.sheet td.c-ro{padding:0 6px}
+.col-rs{position:absolute;top:0;right:-5px;width:10px;height:100%;cursor:col-resize;z-index:5;touch-action:none}
+.col-rs::after{content:"";position:absolute;top:22%;bottom:22%;left:4px;width:2px;border-radius:2px;background:transparent;transition:background .15s}
+th:hover .col-rs::after,.col-rs.on::after{background:var(--accent)}
+@media (hover:none){.col-rs{width:22px;right:-11px}.col-rs::after{left:10px;background:var(--line-2)}}
+.sheet select{padding:0 16px 0 8px;background-position:right 3px center}

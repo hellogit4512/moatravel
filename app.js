@@ -1138,7 +1138,7 @@ function planSheet(r) {
       ${cell(p, 'addr', inp(p, 'addr', p.addr, 'maxlength="120"'))}
       ${cell(p, 'memo', inp(p, 'memo', p.memo, 'maxlength="300"'))}
       <td class="c-ro num">${p.hearts.length || ''}</td>
-      <td class="c-ro num">${sp ? won(sp) : ''}</td>
+      <td class="c-ro num" title="${sp ? won(sp) : ''}">${sp ? won(sp).replace('원', '') : ''}</td>
       <td class="c-chk"><input type="checkbox" data-cell data-id="${p.id}" data-f="visited" ${p.visited ? 'checked' : ''} aria-label="다녀옴"></td>
       <td class="c-x"><button class="btn ghost icon sm" data-act="sheet-del" data-id="${p.id}" aria-label="${esc(p.name)} 삭제" tabindex="-1">${I('x', 14)}</button></td>
     </tr>`;
@@ -1146,14 +1146,41 @@ function planSheet(r) {
   return `<div class="sec"><div><h2>우리 일정</h2><p>엑셀처럼 칸을 눌러 바로 고쳐요. 고친 내용은 일행 화면에도 바로 반영돼요.</p></div>
     <div class="acts">${planViewSeg()}<button class="btn ghost" data-act="xl-out" title="엑셀로 받기">${I('down2', 16)}엑셀</button></div></div>
   ${lock ? `<div class="locked">${I('check', 18, 2.2)}<span><b>일정 확정</b> · 날짜와 순서는 잠겨 있어요</span><span class="sp"></span><button class="btn sm" data-act="reopen-plan">다시 열기</button></div>` : ''}
-  <div class="sheet-wrap card"><table class="sheet">
-    <thead><tr><th class="c-day">일차</th><th class="c-order">순서</th><th class="c-time">시간</th><th class="c-name">장소</th><th class="c-cat">분류</th><th class="c-addr">주소</th><th class="c-memo">메모</th><th class="c-ro">♥</th><th class="c-ro">지출</th><th class="c-chk">✓</th><th class="c-x"></th></tr></thead>
+  <div class="sheet-wrap card"><table class="sheet" style="${sheetStyle()}">
+    <colgroup>${SHEET_COLS.map((c) => `<col data-col="${c.k}" style="width:${colW(c.k)}px">`).join('')}</colgroup>
+    <thead><tr>${SHEET_COLS.map((c) => `<th class="c-${c.cls || c.k}">${c.n}${c.fix ? '' : `<span class="col-rs" data-rs="${c.k}" title="끌어서 너비 조절 · 두 번 누르면 기본"></span>`}</th>`).join('')}</tr></thead>
     <tbody>${body}</tbody>
     <tfoot><tr><td colspan="11"><form class="sheet-add" data-form="sheet-add"><select name="d" aria-label="새 장소 일차">${dayOpts(ui.sheetDay || 0)}</select><input name="t" placeholder="＋ 장소 이름을 쓰고 Enter (위치는 자동으로 찾아요)" maxlength="60" autocomplete="off" aria-label="새 장소 이름"></form></td></tr></tfoot>
   </table></div>
-  <p class="faint sheet-help">Enter: 아래 칸 · ↑↓: 위아래 줄 · Tab: 옆 칸 · 순서 숫자를 바꾸면 그날 순서가 바뀌어요</p>
+  <p class="faint sheet-help">Enter: 아래 칸 · ↑↓: 위아래 줄 · Tab: 옆 칸 · 제목 칸 경계를 끌면 너비가 바뀌어요</p>
   <div class="plan-pack" id="pack">${packTab(r)}</div>`;
 }
+// 표 칸 너비: 기본값은 분류·하트는 좁게, 메모·주소는 넓게. 끌어서 바꾸면 기기에 저장돼요
+const SHEET_COLS = [
+  { k: 'day', n: '일차', w: 88 }, { k: 'order', n: '순서', w: 48 }, { k: 'time', n: '시간', w: 66 }, { k: 'name', n: '장소', w: 170 },
+  { k: 'cat', n: '분류', w: 60 }, { k: 'addr', n: '주소', w: 210 }, { k: 'memo', n: '메모', w: 360 },
+  { k: 'heart', n: '♥', w: 40, cls: 'ro' }, { k: 'spent', n: '지출', w: 82, cls: 'ro' }, { k: 'chk', n: '✓', w: 38, fix: true }, { k: 'x', n: '', w: 36, fix: true },
+];
+const colW = (k) => S.colW?.[k] || SHEET_COLS.find((c) => c.k === k).w;
+const sheetStyle = () => `width:${SHEET_COLS.reduce((a, c) => a + colW(c.k), 0)}px;--c0:${colW('day')}px`;
+(() => {
+  let st = null;
+  document.addEventListener('pointerdown', (e) => {
+    const h = e.target.closest?.('[data-rs]'); if (!h) return;
+    e.preventDefault(); h.setPointerCapture(e.pointerId);
+    st = { k: h.dataset.rs, x: e.clientX, w: colW(h.dataset.rs), h, table: h.closest('table') }; h.classList.add('on');
+  });
+  document.addEventListener('pointermove', (e) => {
+    if (!st) return;
+    const w = Math.round(Math.max(36, Math.min(800, st.w + e.clientX - st.x)));
+    S.colW = { ...(S.colW || {}), [st.k]: w };
+    $(`col[data-col="${st.k}"]`, st.table).style.width = w + 'px';
+    st.table.setAttribute('style', sheetStyle());
+  });
+  const end = () => { if (!st) return; st.h.classList.remove('on'); save(); st = null; };
+  document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end);
+  document.addEventListener('dblclick', (e) => { const h = e.target.closest?.('[data-rs]'); if (!h) return; if (S.colW) delete S.colW[h.dataset.rs]; save(); render(); });
+})();
 const planViewSeg = () => `<div class="seg"><button class="${ui.planView !== 'table' ? 'on' : ''}" data-act="plan-view" data-k="cards" aria-label="카드로 보기" title="카드로 보기">${I('grid', 16)}</button><button class="${ui.planView === 'table' ? 'on' : ''}" data-act="plan-view" data-k="table" aria-label="표로 보기" title="표로 보기">${I('list', 16)}표</button></div>`;
 function sheetEdit(el) {
   const r = room(); if (!r) return;
