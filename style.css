@@ -652,3 +652,4 @@ th:hover .col-rs::after,.col-rs.on::after{background:var(--accent)}
 .fxbar .chip{height:30px;font-variant-numeric:tabular-nums}
 .amt-row{gap:8px;align-items:stretch}
 .cur-sel{width:auto;flex:none;font-weight:700}
+.two.one{grid-template-columns:minmax(0,1fr)}.sheet .sh-total td{background:var(--sunk);font-weight:700;height:36px}

@@ -80,7 +80,7 @@ const I = (n, s = 18, sw = 1.7) => `<svg class="i" width="${s}" height="${s}" vi
 
 // ───────── 상태 ─────────
 let S = load();
-const ui = { planView: (() => { try { return localStorage.getItem('moa.planView') || 'cards'; } catch (e) { return 'cards'; } })(), planDay: 0, planMap: true, filter: 'all', sort: 'new', view: 'map', openCmt: {}, q: '' };
+const ui = { moneyView: (() => { try { return localStorage.getItem('moa.moneyView') || 'list'; } catch (e) { return 'list'; } })(), planView: (() => { try { return localStorage.getItem('moa.planView') || 'cards'; } catch (e) { return 'cards'; } })(), planDay: 0, planMap: true, filter: 'all', sort: 'new', view: 'map', openCmt: {}, q: '' };
 const failed = {};
 let mapCtl = null;
 
@@ -1117,6 +1117,67 @@ function todayTab(r) {
   </div>`;
 }
 
+
+// ───── 지출 표 ─────
+function expSheet(r) {
+  const n = dayCount(r), curs = Object.keys(r.fx || {}).filter((k) => curOf(k));
+  const nm = (id) => member(r, id).name, all = (e) => e.split.length === r.members.length && r.members.every((m) => e.split.includes(m.id));
+  const planned = r.places.filter((p) => p.day).sort((a, b) => a.day - b.day || sortPlan(a, b));
+  const inp = (e, f, v, extra = '') => `<input data-cell data-kind="exp" data-id="${e.id}" data-f="${f}" value="${esc(v ?? '')}" ${extra}>`;
+  const sel = (e, f, opts) => `<select data-cell data-kind="exp" data-id="${e.id}" data-f="${f}">${opts}</select>`;
+  let prev = -1;
+  const rows = r.expenses.slice().sort((a, b) => expDay(r, a) - expDay(r, b) || a.at - b.at).map((e) => {
+    const d = expDay(r, e), col = d ? COLORS[(d - 1) % COLORS.length] : 'var(--line-2)', ec = e.cur && e.cur !== 'KRW' && curOf(e.cur) ? e.cur : 'KRW';
+    const sep = d !== prev ? `<tr class="sh-day"><td colspan="12"><span style="color:${col}">${d ? `${d}일차` : '여행 전 · 공통'}</span>${d && !undated(r) ? `<span class="faint">${dayLabel(r, d)}</span>` : ''}<span class="faint">· ${won(daySpent(r, d))}</span></td></tr>` : '';
+    prev = d;
+    return `${sep}<tr data-pid="${e.id}" style="--c:${col}">
+      <td class="c-day">${sel(e, 'day', `<option value="0">공통</option>${Array.from({ length: n }, (_, i) => `<option value="${i + 1}" ${d === i + 1 ? 'selected' : ''}>${i + 1}일차</option>`).join('')}`)}</td>
+      <td class="c-name">${inp(e, 'title', e.title, 'maxlength="60"')}</td>
+      <td>${sel(e, 'cur', `<option value="KRW">원</option>${[...new Set([...curs, ...(ec !== 'KRW' ? [ec] : [])])].map((k) => `<option value="${k}" ${ec === k ? 'selected' : ''}>${curOf(k).s}</option>`).join('')}`)}</td>
+      <td>${inp(e, 'amt', ec === 'KRW' ? e.amount.toLocaleString('ko-KR') : (+e.orig).toLocaleString('ko-KR', { maximumFractionDigits: 2 }), 'inputmode="decimal" class="num"')}</td>
+      <td class="c-ro num">${won(e.amount).replace('원', '')}</td>
+      <td>${sel(e, 'cat', ECATS.map((c) => `<option value="${c.k}" ${e.cat === c.k ? 'selected' : ''}>${c.n}</option>`).join(''))}</td>
+      <td>${sel(e, 'payer', r.members.map((m) => `<option value="${m.id}" ${e.payer === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join(''))}</td>
+      <td>${inp(e, 'split', all(e) ? '전원' : e.split.map(nm).join(', '), 'placeholder="전원 또는 이름, 이름"')}</td>
+      <td>${sel(e, 'pid', `<option value="">–</option>${planned.map((p) => `<option value="${p.id}" ${e.pid === p.id ? 'selected' : ''}>${p.day}일 · ${esc(p.name)}</option>`).join('')}`)}</td>
+      <td class="c-ro num">${won(e.amount / Math.max(1, e.split.length)).replace('원', '')}</td>
+      <td class="c-x"><button class="btn ghost icon sm" data-act="edit-exp" data-id="${e.id}" tabindex="-1" title="영수증·자세히" aria-label="${esc(e.title)} 자세히">${e.photos?.length ? I('clip', 14) : I('more', 14)}</button></td>
+      <td class="c-x"><button class="btn ghost icon sm" data-act="sheet-exp-del" data-id="${e.id}" tabindex="-1" aria-label="${esc(e.title)} 삭제">${I('x', 14)}</button></td>
+    </tr>`;
+  }).join('');
+  const total = r.expenses.reduce((a, e) => a + e.amount, 0);
+  return `<div class="sheet-wrap card"><table class="sheet" data-cols="exp" style="${sheetStyle(EXP_COLS)}">
+    <colgroup>${EXP_COLS.map((c) => `<col data-col="${c.k}" style="width:${colW(c.k)}px">`).join('')}</colgroup>
+    <thead><tr>${EXP_COLS.map((c, i) => `<th class="${i === 0 ? 'c-day' : i === 1 ? 'c-name' : c.cls === 'ro' ? 'c-ro' : ''}">${c.n}${c.fix ? '' : `<span class="col-rs" data-rs="${c.k}" title="끌어서 너비 조절 · 두 번 누르면 기본"></span>`}</th>`).join('')}</tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr class="sh-total"><td colspan="4" style="text-align:right;padding-right:8px">합계</td><td class="c-ro num"><b>${won(total).replace('원', '')}</b></td><td colspan="7"></td></tr>
+      <tr><td colspan="12"><form class="sheet-add" data-form="sheet-exp-add"><input name="t" placeholder="＋ 항목 쓰고 Tab" maxlength="60" autocomplete="off" aria-label="새 지출 항목"><input name="a" class="num" inputmode="decimal" placeholder="금액 쓰고 Enter" style="max-width:150px;border-left:1px solid var(--line)" aria-label="새 지출 금액"><button class="btn sm pri" style="display:none">추가</button></form></td></tr></tfoot>
+  </table></div>
+  <p class="faint sheet-help">칸을 눌러 바로 고쳐요 · 나눈 사람은 "전원" 또는 "민수, 유진"처럼 · 📎 버튼으로 영수증을 붙여요</p>`;
+}
+function expEdit(el) {
+  const r = room(); if (!r) return;
+  const e = r.expenses.find((x) => x.id === el.dataset.id); if (!e) return;
+  const f = el.dataset.f, v = el.value.trim(), num = +v.replace(/[^\d.]/g, '');
+  if (f === 'day') e.day = +v || 0;
+  else if (f === 'title') { if (!v) { el.value = e.title; return toast('항목은 비울 수 없어요'); } e.title = v; }
+  else if (f === 'cur' || f === 'amt') {
+    const cur = f === 'cur' ? v : (e.cur && e.cur !== 'KRW' ? e.cur : 'KRW');
+    const shown = f === 'amt' ? num : (e.cur && e.cur !== 'KRW' ? +e.orig : e.amount);
+    if (cur !== 'KRW' && !r.fx?.[cur]) { toast('먼저 환율을 정해주세요'); return render(); }
+    if (!shown) { toast('금액을 적어주세요'); return render(); }
+    Object.assign(e, cur === 'KRW' ? { cur: 'KRW', orig: 0, rate: 0, amount: Math.round(shown) } : { cur, orig: shown, rate: r.fx[cur], amount: Math.round(shown * r.fx[cur]) });
+  }
+  else if (f === 'split') {
+    const names = v.split(/[,，、/ ]+/).map((x) => x.trim()).filter(Boolean);
+    if (!names.length || names.includes('전원') || names.includes('모두')) e.split = r.members.map((m) => m.id);
+    else { const ids = names.map((x) => r.members.find((m) => m.name === x)?.id).filter(Boolean); const miss = names.filter((x) => !r.members.some((m) => m.name === x)); if (!ids.length) { toast('일행 이름으로 적어주세요'); return render(); } e.split = [...new Set(ids)]; if (miss.length) toast(`일행에 없는 이름은 뺐어요: ${miss.join(', ')}`); }
+  }
+  else if (f === 'pid') { e.pid = v; const p = r.places.find((x) => x.id === v); if (p?.day && !e.day) e.day = p.day; }
+  else e[f] = v;
+  touch(r, e); render();
+}
+
 // ───── 일정 표 (스프레드시트처럼 바로 고치기) ─────
 function planSheet(r) {
   const n = dayCount(r), lock = !!r.confirmed, me = meId(r);
@@ -1162,8 +1223,13 @@ const SHEET_COLS = [
   { k: 'cat', n: '분류', w: 60 }, { k: 'addr', n: '주소', w: 210 }, { k: 'memo', n: '메모', w: 360 },
   { k: 'heart', n: '♥', w: 40, cls: 'ro' }, { k: 'spent', n: '지출', w: 82, cls: 'ro' }, { k: 'chk', n: '✓', w: 38, fix: true }, { k: 'x', n: '', w: 36, fix: true },
 ];
-const colW = (k) => S.colW?.[k] || SHEET_COLS.find((c) => c.k === k).w;
-const sheetStyle = () => `width:${SHEET_COLS.reduce((a, c) => a + colW(c.k), 0)}px;--c0:${colW('day')}px`;
+const EXP_COLS = [
+  { k: 'e_day', n: '일차', w: 88 }, { k: 'e_title', n: '항목', w: 170 }, { k: 'e_cur', n: '통화', w: 64 }, { k: 'e_amt', n: '금액', w: 100 },
+  { k: 'e_krw', n: '원화', w: 96, cls: 'ro' }, { k: 'e_cat', n: '분류', w: 60 }, { k: 'e_payer', n: '낸 사람', w: 84 }, { k: 'e_split', n: '나눈 사람', w: 170 },
+  { k: 'e_pid', n: '장소', w: 140 }, { k: 'e_per', n: '1인', w: 84, cls: 'ro' }, { k: 'e_rc', n: '📎', w: 40, fix: true }, { k: 'e_x', n: '', w: 36, fix: true },
+];
+const colW = (k) => S.colW?.[k] || [...SHEET_COLS, ...EXP_COLS].find((c) => c.k === k).w;
+const sheetStyle = (cols = SHEET_COLS) => `width:${cols.reduce((a, c) => a + colW(c.k), 0)}px;--c0:${colW(cols[0].k)}px`;
 (() => {
   let st = null;
   document.addEventListener('pointerdown', (e) => {
@@ -1176,12 +1242,13 @@ const sheetStyle = () => `width:${SHEET_COLS.reduce((a, c) => a + colW(c.k), 0)}
     const w = Math.round(Math.max(36, Math.min(800, st.w + e.clientX - st.x)));
     S.colW = { ...(S.colW || {}), [st.k]: w };
     $(`col[data-col="${st.k}"]`, st.table).style.width = w + 'px';
-    st.table.setAttribute('style', sheetStyle());
+    st.table.setAttribute('style', sheetStyle(st.table.dataset.cols === 'exp' ? EXP_COLS : SHEET_COLS));
   });
   const end = () => { if (!st) return; st.h.classList.remove('on'); save(); st = null; };
   document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end);
   document.addEventListener('dblclick', (e) => { const h = e.target.closest?.('[data-rs]'); if (!h) return; if (S.colW) delete S.colW[h.dataset.rs]; save(); render(); });
 })();
+const moneyViewSeg = () => `<div class="seg"><button class="${ui.moneyView !== 'table' ? 'on' : ''}" data-act="money-view" data-k="list" aria-label="목록으로 보기" title="목록으로 보기">${I('grid', 16)}</button><button class="${ui.moneyView === 'table' ? 'on' : ''}" data-act="money-view" data-k="table" aria-label="표로 보기" title="표로 보기">${I('list', 16)}표</button></div>`;
 const planViewSeg = () => `<div class="seg"><button class="${ui.planView !== 'table' ? 'on' : ''}" data-act="plan-view" data-k="cards" aria-label="카드로 보기" title="카드로 보기">${I('grid', 16)}</button><button class="${ui.planView === 'table' ? 'on' : ''}" data-act="plan-view" data-k="table" aria-label="표로 보기" title="표로 보기">${I('list', 16)}표</button></div>`;
 function sheetEdit(el) {
   const r = room(); if (!r) return;
@@ -1196,13 +1263,13 @@ function sheetEdit(el) {
   else p[f] = v;
   touch(r, p);
 }
-document.addEventListener('change', (ev) => { if (ev.target.matches?.('[data-cell]')) sheetEdit(ev.target); });
+document.addEventListener('change', (ev) => { if (ev.target.matches?.('[data-cell]')) (ev.target.dataset.kind === 'exp' ? expEdit : sheetEdit)(ev.target); });
 document.addEventListener('keydown', (ev) => {
   const el = ev.target; if (!el.matches?.('input[data-cell]:not([type=checkbox])')) return;
   const dir = ev.key === 'Enter' || ev.key === 'ArrowDown' ? 1 : ev.key === 'ArrowUp' ? -1 : 0;
   if (!dir) { if (ev.key === 'Escape') { el.blur(); } return; }
   ev.preventDefault();
-  if (el.value !== el.defaultValue) { el.defaultValue = el.value; sheetEdit(el); }
+  if (el.value !== el.defaultValue) { el.defaultValue = el.value; (el.dataset.kind === 'exp' ? expEdit : sheetEdit)(el); }
   const td = el.closest('td'), tr = td?.closest('tr'); if (!tr) return;
   const ci = [...tr.children].indexOf(td);
   let t = dir > 0 ? tr.nextElementSibling : tr.previousElementSibling;
@@ -1328,7 +1395,8 @@ function moneyTab(r) {
     ${dayBars(r)}
   </div>
   ${fxBar(r)}
-  <div class="two">
+  ${ui.moneyView === 'table' ? `<div class="sec"><div><h2>지출 내역</h2><p>${r.expenses.length}건 · 엑셀처럼 칸을 눌러 바로 고쳐요</p></div><div class="acts">${moneyViewSeg()}</div></div>${expSheet(r)}` : ''}
+  <div class="two ${ui.moneyView === 'table' ? 'one' : ''}">
     <div>
       <div class="sec"><div><h2>이렇게 보내면 끝</h2><p>송금 횟수가 가장 적게 계산했어요.</p></div>${tx.length ? `<div class="acts"><button class="btn sm" data-act="copy-settle">${I('copy', 15)}복사</button></div>` : ''}</div>
       <div class="card rows">${tx.length ? tx.map((t) => `<div class="r">${av(member(r, t.from), 28)}<b>${esc(member(r, t.from).name)}</b><span class="arrow">→</span>${av(member(r, t.to), 28)}<b class="grow">${esc(member(r, t.to).name)}</b><span class="amt">${won(t.amt)}</span></div>`).join('') : '<div class="r muted">모두 정산 완료! 보낼 돈이 없어요.</div>'}</div>
@@ -1336,8 +1404,8 @@ function moneyTab(r) {
       <div class="card rows">${r.members.map((m) => { const paid = r.expenses.filter((e) => e.payer === m.id).reduce((s, e) => s + e.amount, 0); const b = bal[m.id] || 0;
         return `<div class="r">${av(m, 28)}<div class="grow"><b>${esc(m.name)}</b><div class="faint" style="font-size:12px">낸 돈 ${won(paid)} · 내 몫 ${won(paid - b)}</div></div><span class="amt ${b > 0.5 ? 'pos' : b < -0.5 ? 'neg' : 'faint'}">${b > 0.5 ? '받을 돈 ' : b < -0.5 ? '보낼 돈 ' : ''}${won(Math.abs(b))}</span></div>`; }).join('')}</div>
     </div>
-    <div>
-      <div class="sec"><div><h2>지출 내역</h2><p>${r.expenses.length}건 · 날짜별로 모았어요 · 눌러서 수정</p></div></div>
+    <div ${ui.moneyView === 'table' ? 'hidden' : ''}>
+      <div class="sec"><div><h2>지출 내역</h2><p>${r.expenses.length}건 · 날짜별로 모았어요 · 눌러서 수정</p></div><div class="acts">${moneyViewSeg()}</div></div>
       ${Array.from({ length: dayCount(r) + 1 }, (_, d) => { const list = r.expenses.filter((e) => expDay(r, e) === d).sort((a, b) => b.at - a.at); if (!list.length) return '';
         return `<div class="exp-day" id="exp-d${d}"><div class="exp-day-h"><b>${d ? `${d}일차` : '여행 전 · 공통'}</b>${d ? `<span class="faint">${dayLabel(r, d)}</span>` : ''}<span class="sp"></span><span class="amt">${won(list.reduce((s, e) => s + e.amount, 0))}</span></div>
         <div class="card rows">${list.map((e) => expRow(r, e)).join('')}</div></div>`; }).join('')}
@@ -1997,6 +2065,8 @@ document.addEventListener('click', (ev) => {
       if (ui.planDay) $(`#day-${ui.planDay}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     },
     'plan-map': () => { ui.planMap = !ui.planMap; render(); },
+    'money-view': () => { ui.moneyView = el.dataset.k; try { localStorage.setItem('moa.moneyView', ui.moneyView); } catch (e) { /* noop */ } render(); },
+    'sheet-exp-del': () => { const e = r.expenses.find((x) => x.id === el.dataset.id); if (e) removeUndo(r, 'expenses', e.id, `'${e.title}' 지출을`); },
     fx: () => fxModal(r, el.dataset.k),
     'plan-view': () => { ui.planView = el.dataset.k; try { localStorage.setItem('moa.planView', ui.planView); } catch (e) { /* noop */ } render(); },
     'sheet-del': () => { const p = P(el.dataset.id); if (p) removeUndo(r, 'places', p.id, `'${p.name}'을(를)`); },
@@ -2090,6 +2160,13 @@ document.addEventListener('submit', (ev) => {
   }
   if (kind === 'destopt' && t) { const o = { id: uid(), name: t.slice(0, 30), by: meId(r), votes: [meId(r)], at: now() }; (r.destOpts ||= []).push(o); sysMsg(r, `${member(r, meId(r)).name}님이 여행지 후보 '${o.name}'을(를) 올렸어요`); touch(r, o); render(); return; }
   if (kind === 'sheet-add' && t) { sheetAdd(r, f); return; }
+  if (kind === 'sheet-exp-add') {
+    const a = +String(f.a.value).replace(/[^\d.]/g, ''); if (!t) return f.t.focus(); if (!a) return f.a.focus();
+    const curs = Object.keys(r.fx || {}).filter((k) => curOf(k)), cur = tripToday(r) && curs[0] ? curs[0] : 'KRW', me = meId(r);
+    const ne = { id: uid(), title: t.slice(0, 60), cat: 'food', payer: me, split: r.members.map((m) => m.id), day: tripToday(r), pid: '', photos: [], at: now(),
+      ...(cur === 'KRW' ? { cur: 'KRW', amount: Math.round(a) } : { cur, orig: a, rate: r.fx[cur], amount: Math.round(a * r.fx[cur]) }) };
+    r.expenses.push(ne); touch(r, ne); render(); $('.sheet-add [name=t]')?.focus(); return;
+  }
   if (kind === 'chat' && t) { r.messages.push({ id: uid(), by: meId(r), text: t, at: now(), upd: now() }); touch(r); render(); $('.composer input')?.focus(); }
   if (kind === 'cmt' && t) { const p = r.places.find((x) => x.id === f.dataset.id); p.comments.push({ id: uid(), by: meId(r), text: t, at: now() }); touch(r, p); render(); $(`[data-form=cmt][data-id="${p.id}"] input`)?.focus({ preventScroll: true }); }
   if (kind === 'pack' && t) { const c = { id: uid(), text: t, who: f.who.value || null, done: false }; r.checklist.push(c); touch(r, c); render(); $('[data-form=pack] input')?.focus(); }
