@@ -1353,7 +1353,7 @@ function planTab(r) {
       ${Array.from({ length: days }, (_, i) => `<button class="chip ${cur === i + 1 ? 'on' : ''}" data-act="plan-day" data-d="${i + 1}"><span class="dot" style="--c:${COLORS[i % COLORS.length]}"></span>${i + 1}일차</button>`).join('')}
     </div>
     <button class="btn sm pend-btn ${pending.length ? 'has' : ''}" data-act="pending" title="날짜 미정 장소">${I('pin', 15)}미정 <b>${pending.length}</b></button>
-    <button class="btn sm ${showMap ? '' : 'pri'}" data-act="map-toggle" aria-pressed="${showMap}" title="${showMap ? '지도 숨기기' : '지도 보이기'}">${I('map', 15)}${showMap ? '지도 끄기' : '지도 켜기'}</button>
+    <button class="btn sm ${showMap ? '' : 'pri'}" data-act="map-toggle" aria-pressed="${showMap}" title="${showMap ? '지도 숨기기' : '지도 보이기'}" aria-label="${showMap ? '지도 끄기' : '지도 켜기'}">${I('map', 15)}<span class="pb-t">${showMap ? '지도 끄기' : '지도 켜기'}</span></button>
   </div>
   <div class="places-layout ${showMap ? (isWide() ? 'split' : 'stack') : ''} plan-layout"><div class="plan-main">
   <div class="days ${cur ? 'single' : ''}">

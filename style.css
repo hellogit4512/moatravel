@@ -705,3 +705,16 @@ th:hover .col-rs::after,.col-rs.on::after{background:var(--accent)}
 .day-pick:hover .day-no{text-decoration:none}
 .plan-map{position:relative}
 .map-day-pill{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:6;display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:99px;border:0;background:var(--ink);color:var(--on-ink);font:inherit;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.18);white-space:nowrap}
+
+/* 일정 상단 바: 내려도 계속 보이게 */
+.plan-bar{position:sticky;top:0;z-index:7;background:var(--bg);margin:0 -4px 12px;padding:8px 4px}
+@media (max-width:1023px){
+  .plan-bar{top:calc(var(--top) + env(safe-area-inset-top));margin:0 -16px 10px;padding:8px 16px;flex-wrap:nowrap;gap:6px;box-shadow:0 6px 10px -8px rgba(15,60,45,.18)}
+  .plan-bar .daychips-c{flex:1 1 auto;flex-basis:auto}
+  .plan-bar .btn{flex:none;height:34px;padding:0 10px}
+  .plan-bar .chip{height:34px}
+  .plan-bar .pb-t{display:none}
+  .plan-layout.stack .mapblock{top:calc(var(--top) + env(safe-area-inset-top) + 50px)}
+  .plan-layout .day{scroll-margin-top:calc(var(--top) + 60px)}
+  .plan-layout.stack .day{scroll-margin-top:calc(var(--top) + 60px + var(--map-h, clamp(200px,32dvh,340px)) + 30px)}
+}
