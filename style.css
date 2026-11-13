@@ -726,3 +726,4 @@ th:hover .col-rs::after,.col-rs.on::after{background:var(--accent)}
 .today-wx{margin-top:6px}
 .today-wx .wx{font-size:14px;padding:4px 12px}
 .wx.clim{background:transparent;border:1px dashed var(--line-2);color:var(--muted);font-weight:600}
+.day-wx{display:flex;margin:-4px 0 6px}.day-wx .wx{font-size:12px}
