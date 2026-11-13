@@ -725,7 +725,7 @@ function render() {
   if (slot && r) {
     if (mapCtl && !mapCtl.dead && mapCtl.roomId === r.id && mapCtl.pv === provider(r)) { slot.replaceWith(mapCtl.el); mapCtl.update(r); mapCtl.resize(); }
     else { mapCtl?.destroy(); mapCtl = createMap(r); slot.replaceWith(mapCtl.el); }
-    mapCtl.setDay(rt.tab === 'plan' ? ui.planDay : rt.tab === 'today' ? todayDay(r) : null);
+    mapCtl.setDay(rt.tab === 'plan' ? ui.planDay || ui.mapDay || null : rt.tab === 'today' ? todayDay(r) : null);
     if (mapCtl.kind) $('.map-src')?.replaceChildren(document.createTextNode(PNAME[mapCtl.kind]));
   }
   if (r && rt.tab === 'chat') { const el = $('.msgs'); if (el) el.scrollTop = el.scrollHeight; markSeen(r); }
@@ -1359,8 +1359,9 @@ function planTab(r) {
   <div class="days ${cur ? 'single' : ''}">
   ${dayList.map((d) => {
     const items = dayItems(r, d), col = COLORS[(d - 1) % COLORS.length];
-    return `<section class="day ${cur === d ? 'on' : ''}" data-drop="${d}" id="day-${d}">
-      <div class="day-head"><button class="day-pick" data-act="plan-day" data-d="${cur === d ? 0 : d}" title="${cur === d ? '전체 보기' : `${d}일차만 보기`}"><span class="day-no" style="color:${col}">${d}일차</span><span class="day-date">${dayLabel(r, d)}</span>${cur === d ? `<span class="faint" style="font-size:12px">· 전체 보기</span>` : ''}</button><span class="sp"></span>
+    const md = !cur && ui.mapDay === d;
+    return `<section class="day ${cur === d || md ? 'on' : ''} ${!cur && ui.mapDay && !md ? 'dim' : ''}" data-drop="${d}" id="day-${d}" ${cur ? '' : `data-act="map-day" data-d="${d}" title="눌러서 지도에 ${d}일차만 표시"`}>
+      <div class="day-head"><span class="day-pick"><span class="day-no" style="color:${col}">${d}일차</span><span class="day-date">${dayLabel(r, d)}</span>${md ? `<span class="tag accent" style="font-size:11px">${I('map', 11)} 지도에 표시 중</span>` : ''}</span><span class="sp"></span>
         <button class="day-spent ${daySpent(r, d) ? '' : 'zero'}" data-act="add-exp" data-d="${d}" title="${d}일차 지출 추가">${I('wallet', 14)}${daySpent(r, d) ? won(daySpent(r, d)) : '지출'}<span class="plus">＋</span></button>
         ${items.length > 1 ? `<a class="btn ghost sm" href="${esc(routeUrl(r, items))}" target="_blank" rel="noopener" title="${PNAME[provider(r)]} 경로">${I('route', 16)}경로</a>` : ''}</div>
       ${items.length ? `<ol class="stops">${items.map((p, j) => `<li class="stop ${p.visited ? 'visited' : ''} ${ui.sel === p.id ? 'sel' : ''}" data-pid="${p.id}" ${lock ? '' : `draggable="true" data-drag="${p.id}"`} style="--c:${col}">
@@ -1440,7 +1441,7 @@ function placeDetail(r, p) {
 }
 const saveMapOff = () => { try { localStorage.setItem('moa.mapOff', ui.mapOff ? '1' : ''); } catch (e) { /* noop */ } };
 function planMap(r) {
-  return `<div class="mapblock plan-map">${isWide() ? '<div class="map-pane"><div id="map-slot"></div></div>' : '<div class="map-mobile"><div id="map-slot"></div></div><div class="map-grip" data-grip role="slider" aria-label="지도 크기 조절 (끌어서 조절)" title="끌어서 지도 크기 조절 · 두 번 누르면 기본"><i></i></div>'}</div>`;
+  return `<div class="mapblock plan-map">${ui.mapDay && !ui.planDay ? `<button class="map-day-pill" data-act="map-day" data-d="${ui.mapDay}">${ui.mapDay}일차만 표시 중 · 전체 보기 ${I('x', 13)}</button>` : ''}${isWide() ? '<div class="map-pane"><div id="map-slot"></div></div>' : '<div class="map-mobile"><div id="map-slot"></div></div><div class="map-grip" data-grip role="slider" aria-label="지도 크기 조절 (끌어서 조절)" title="끌어서 지도 크기 조절 · 두 번 누르면 기본"><i></i></div>'}</div>`;
 }
 function planText(r) {
   let t = `✈️ ${r.name}\n📍 ${r.dest} · ${range(r)} (${nights(r)})\n`;
@@ -2167,10 +2168,16 @@ document.addEventListener('click', (ev) => {
       selPlace(p.id);
     },
     'plan-day': () => {
-      ui.planDay = +el.dataset.d; render();
+      ui.planDay = +el.dataset.d; ui.mapDay = 0; render();
       $('.plan-bar')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     },
     'plan-map': () => { ui.planMap = !ui.planMap; render(); },
+    'map-day': () => {
+      if (ev.target.closest('input,select,textarea,a,label')) return;
+      const d = +el.dataset.d; ui.mapDay = ui.mapDay === d ? 0 : d;
+      if (ui.mapDay && ui.mapOff) { ui.mapOff = false; saveMapOff(); }
+      render();
+    },
     'map-toggle': () => { ui.mapOff = !ui.mapOff; saveMapOff(); render(); },
     pending: () => pendingDrawer(r, +el.dataset.d || 0),
     'place-detail': () => placeDetail(r, P(el.dataset.id)),

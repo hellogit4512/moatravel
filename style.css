@@ -697,3 +697,11 @@ th:hover .col-rs::after,.col-rs.on::after{background:var(--accent)}
 .pd-exp:hover{border-color:var(--accent)}
 .pd-cmt{font-size:14px;padding:6px 0;border-bottom:1px dashed var(--line)}
 @media (max-width:760px){.plan-bar{gap:6px}.plan-bar .daychips-c{flex-basis:100%}.plan-bar .btn{flex:1;justify-content:center}}
+.day[data-act="map-day"]{cursor:pointer;transition:border-color .15s,opacity .2s,box-shadow .15s}
+.day[data-act="map-day"]:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
+.day.on{box-shadow:0 0 0 3px var(--accent-soft)}
+.day.dim{opacity:.6}
+.day-pick{cursor:inherit}
+.day-pick:hover .day-no{text-decoration:none}
+.plan-map{position:relative}
+.map-day-pill{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:6;display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:99px;border:0;background:var(--ink);color:var(--on-ink);font:inherit;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.18);white-space:nowrap}
