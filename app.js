@@ -1200,7 +1200,7 @@ function planSheet(r) {
       ${cell(p, 'addr', inp(p, 'addr', p.addr, 'maxlength="120"'))}
       ${cell(p, 'memo', inp(p, 'memo', p.memo, 'maxlength="300"'))}
       <td class="c-ro num">${p.hearts.length || ''}</td>
-      <td class="c-ro num" title="${sp ? won(sp) : ''}">${sp ? won(sp).replace('원', '') : ''}</td>
+      ${spentCell(r, p)}
       <td class="c-chk"><input type="checkbox" data-cell data-id="${p.id}" data-f="visited" ${p.visited ? 'checked' : ''} aria-label="다녀옴"></td>
       <td class="c-x"><button class="btn ghost icon sm" data-act="sheet-del" data-id="${p.id}" aria-label="${esc(p.name)} 삭제" tabindex="-1">${I('x', 14)}</button></td>
     </tr>`;
@@ -1221,7 +1221,7 @@ function planSheet(r) {
 const SHEET_COLS = [
   { k: 'day', n: '일차', w: 88 }, { k: 'order', n: '순서', w: 48 }, { k: 'time', n: '시간', w: 66 }, { k: 'name', n: '장소', w: 170 },
   { k: 'cat', n: '분류', w: 60 }, { k: 'addr', n: '주소', w: 210 }, { k: 'memo', n: '메모', w: 360 },
-  { k: 'heart', n: '♥', w: 40, cls: 'ro' }, { k: 'spent', n: '지출', w: 82, cls: 'ro' }, { k: 'chk', n: '✓', w: 38, fix: true }, { k: 'x', n: '', w: 36, fix: true },
+  { k: 'heart', n: '♥', w: 40, cls: 'ro' }, { k: 'spent', n: '지출', w: 96 }, { k: 'chk', n: '✓', w: 38, fix: true }, { k: 'x', n: '', w: 36, fix: true },
 ];
 const EXP_COLS = [
   { k: 'e_day', n: '일차', w: 88 }, { k: 'e_title', n: '항목', w: 170 }, { k: 'e_cur', n: '통화', w: 64 }, { k: 'e_amt', n: '금액', w: 100 },
@@ -1249,6 +1249,32 @@ const sheetStyle = (cols = SHEET_COLS) => `width:${cols.reduce((a, c) => a + col
   document.addEventListener('dblclick', (e) => { const h = e.target.closest?.('[data-rs]'); if (!h) return; if (S.colW) delete S.colW[h.dataset.rs]; save(); render(); });
 })();
 const moneyViewSeg = () => `<div class="seg"><button class="${ui.moneyView !== 'table' ? 'on' : ''}" data-act="money-view" data-k="list" aria-label="목록으로 보기" title="목록으로 보기">${I('grid', 16)}</button><button class="${ui.moneyView === 'table' ? 'on' : ''}" data-act="money-view" data-k="table" aria-label="표로 보기" title="표로 보기">${I('list', 16)}표</button></div>`;
+// 일정 표의 '지출' 칸: 비어 있으면 새 지출, 1건이면 그 금액 수정, 여러 건이면 목록 열기
+const P2E = { food: 'food', cafe: 'food', stay: 'stay', shop: 'shop', spot: 'play', etc: 'etc' };
+const defCur = (r) => { const ks = Object.keys(r.fx || {}).filter((k) => curOf(k)); return ks.includes(guessCur(r)) ? guessCur(r) : ks[0] || 'KRW'; };
+function spentCell(r, p) {
+  const lx = r.expenses.filter((e) => e.pid === p.id);
+  if (lx.length > 1) return `<td class="c-spent"><button class="sh-multi num" data-act="place-exps" data-id="${p.id}" title="지출 ${lx.length}건">${won(placeSpent(r, p.id)).replace('원', '')}<small>${lx.length}건</small></button></td>`;
+  const e = lx[0], fc = e && e.cur && e.cur !== 'KRW' && curOf(e.cur) ? e.cur : null, dc = defCur(r);
+  const val = !e ? '' : fc ? fmtCur(fc, e.orig) : e.amount.toLocaleString('ko-KR');
+  return `<td class="c-spent" title="${e ? `${esc(e.title)} · ${won(e.amount)}` : '여기서 쓴 돈을 적으면 정산에 들어가요'}"><input data-cell data-id="${p.id}" data-f="spent" class="num" inputmode="decimal" value="${esc(val)}" placeholder="${dc === 'KRW' ? '+ 원' : `+ ${curOf(dc).s}`}" aria-label="${esc(p.name)} 지출"></td>`;
+}
+function placeSpentEdit(r, p, v) {
+  const n = +String(v).replace(/[^\d.]/g, ''), e = r.expenses.find((x) => x.pid === p.id);
+  if (!n) { if (e) removeUndo(r, 'expenses', e.id, `'${e.title}' 지출을`); else render(); return; }
+  const cur = e ? (e.cur && e.cur !== 'KRW' && curOf(e.cur) ? e.cur : 'KRW') : defCur(r);
+  if (cur !== 'KRW' && !r.fx?.[cur]) { toast('먼저 정산 탭에서 환율을 정해주세요'); return render(); }
+  const money = cur === 'KRW' ? { cur: 'KRW', orig: 0, rate: 0, amount: Math.round(n) } : { cur, orig: n, rate: r.fx[cur], amount: Math.round(n * r.fx[cur]) };
+  if (e) { Object.assign(e, money); touch(r, e); }
+  else { const me = meId(r), ne = { id: uid(), title: p.name, cat: P2E[p.cat] || 'etc', payer: me, split: r.members.map((m) => m.id), day: p.day || 0, pid: p.id, photos: [], at: now(), ...money }; r.expenses.push(ne); touch(r, ne); toast(`'${p.name}' 지출 ${won(ne.amount)} · 낸 사람 나, 전원이 나눠요`, { label: '자세히', fn() { expModal(r, ne); } }); }
+  render();
+}
+function placeExps(r, p) {
+  const lx = r.expenses.filter((e) => e.pid === p.id);
+  const f = openModal({ title: `${esc(p.name)} 지출`, body: `<div class="card rows" style="margin:0">${lx.map((e) => `<button type="button" class="r" data-e="${e.id}"><div class="grow"><b>${esc(e.title)}</b><div class="faint" style="font-size:12px">${esc(member(r, e.payer).name)} 결제${e.cur && e.cur !== 'KRW' && curOf(e.cur) ? ` · ${fmtCur(e.cur, e.orig)}` : ''}</div></div><span class="amt">${won(e.amount)}</span></button>`).join('')}</div>
+    <button type="button" class="btn sm" data-new style="align-self:flex-start">${I('plus', 14)}지출 추가</button>` });
+  f.addEventListener('click', (ev) => { const b = ev.target.closest('[data-e],[data-new]'); if (!b) return; closeModal(); b.dataset.e ? expModal(r, r.expenses.find((x) => x.id === b.dataset.e)) : expModal(r, null, { day: p.day || 0, pid: p.id }); });
+}
 const planViewSeg = () => `<div class="seg"><button class="${ui.planView !== 'table' ? 'on' : ''}" data-act="plan-view" data-k="cards" aria-label="카드로 보기" title="카드로 보기">${I('grid', 16)}</button><button class="${ui.planView === 'table' ? 'on' : ''}" data-act="plan-view" data-k="table" aria-label="표로 보기" title="표로 보기">${I('list', 16)}표</button></div>`;
 function sheetEdit(el) {
   const r = room(); if (!r) return;
@@ -1260,6 +1286,7 @@ function sheetEdit(el) {
   if (f === 'time') { const m = v.replace(/[^\d]/g, ''); const t = v ? (m.length <= 2 ? `${m.padStart(2, '0')}:00` : `${m.slice(0, -2).padStart(2, '0')}:${m.slice(-2)}`) : ''; if (t && !/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) { el.value = p.time || ''; return toast('시간은 13:30처럼 적어주세요'); } p.time = t; el.value = t; }
   else if (f === 'name') { if (!v) { el.value = p.name; return toast('장소 이름은 비울 수 없어요'); } p.name = v; }
   else if (f === 'visited') { p.visited = v; el.closest('tr')?.classList.toggle('done', v); }
+  else if (f === 'spent') return placeSpentEdit(r, p, v);
   else p[f] = v;
   touch(r, p);
 }
@@ -2065,6 +2092,7 @@ document.addEventListener('click', (ev) => {
       if (ui.planDay) $(`#day-${ui.planDay}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     },
     'plan-map': () => { ui.planMap = !ui.planMap; render(); },
+    'place-exps': () => { const p = P(el.dataset.id); if (p) placeExps(r, p); },
     'money-view': () => { ui.moneyView = el.dataset.k; try { localStorage.setItem('moa.moneyView', ui.moneyView); } catch (e) { /* noop */ } render(); },
     'sheet-exp-del': () => { const e = r.expenses.find((x) => x.id === el.dataset.id); if (e) removeUndo(r, 'expenses', e.id, `'${e.title}' 지출을`); },
     fx: () => fxModal(r, el.dataset.k),

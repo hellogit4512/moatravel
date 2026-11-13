@@ -653,3 +653,7 @@ th:hover .col-rs::after,.col-rs.on::after{background:var(--accent)}
 .amt-row{gap:8px;align-items:stretch}
 .cur-sel{width:auto;flex:none;font-weight:700}
 .two.one{grid-template-columns:minmax(0,1fr)}.sheet .sh-total td{background:var(--sunk);font-weight:700;height:36px}
+.sheet .c-spent input{text-align:right;color:color-mix(in srgb,var(--warm) 80%,var(--text));font-weight:600}
+.sheet .c-spent input::placeholder{color:var(--faint);font-weight:400}
+.sh-multi{width:100%;height:39px;border:0;background:none;text-align:right;padding:0 8px;font:inherit;font-weight:600;cursor:pointer;color:color-mix(in srgb,var(--warm) 80%,var(--text));display:flex;align-items:center;justify-content:flex-end;gap:4px}
+.sh-multi small{font-size:11px;color:var(--faint);font-weight:500}
