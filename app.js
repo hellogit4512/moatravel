@@ -1375,8 +1375,8 @@ function planTab(r) {
     </section>`;
   }).join('')}
   </div>
-  <div class="plan-pack" id="pack">${packTab(r)}</div>
-  </div>${showMap ? planMap(r) : ''}</div>`;
+  </div>${showMap ? planMap(r) : ''}</div>
+  <div class="plan-pack" id="pack">${packTab(r)}</div>`;
 }
 // 날짜 미정 장소 서랍 (PC는 오른쪽, 모바일은 아래에서 올라와요)
 function pendingDrawer(r, day) {
