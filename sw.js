@@ -37,7 +37,7 @@ self.addEventListener('fetch', (e) => {
 
   // 화면: 인터넷 먼저
   if (req.mode === 'navigate') {
-    e.respondWith(fetch(req).then((res) => { caches.open(SHELL).then((c) => c.put('index.html', res.clone())); return res; })
+    e.respondWith(fetch(req.url, { cache: 'no-cache' }).then((res) => { caches.open(SHELL).then((c) => c.put('index.html', res.clone())); return res; })
       .catch(() => caches.match('index.html')));
     return;
   }
