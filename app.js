@@ -1116,7 +1116,7 @@ function planTab(r) {
   const days = dayCount(r), pending = dayItems(r, 0).sort((a, b) => b.hearts.length - a.hearts.length);
   const lock = !!r.confirmed, planned = r.places.filter((p) => p.day), visited = planned.filter((p) => p.visited).length;
   return `<div class="sec"><div><h2>우리 일정</h2><p>${lock ? '확정된 일정이에요. 다녀온 곳은 체크해 보세요.' : '모아둔 곳을 날짜에 끌어다 놓고, 순서와 시간을 맞춰요.'}</p></div>
-    <div class="acts"><button class="btn" data-act="copy-plan">${I('copy', 16)}단체톡용 복사</button>${lock ? '' : `<button class="btn pri" data-act="confirm-plan" ${planned.length ? '' : 'disabled style="opacity:.5"'}>${I('check', 16, 2.2)}일정 확정</button>`}</div></div>
+    <div class="acts"><button class="btn ghost" data-act="xl-out" title="엑셀로 받기">${I('down2', 16)}엑셀</button><button class="btn" data-act="copy-plan">${I('copy', 16)}단체톡용 복사</button>${lock ? '' : `<button class="btn pri" data-act="confirm-plan" ${planned.length ? '' : 'disabled style="opacity:.5"'}>${I('check', 16, 2.2)}일정 확정</button>`}</div></div>
   <div class="places-layout ${isWide() ? 'split' : 'stack'} plan-layout"><div class="plan-main">
   ${lock ? `<div class="locked">${I('check', 18, 2.2)}<span><b>일정 확정</b> · ${esc(member(r, r.confirmed.by).name)}님이 ${timeAgo(r.confirmed.at)} 확정했어요</span><span class="faint">다녀온 곳 ${visited}/${planned.length}</span><span class="sp"></span><button class="btn sm" data-act="reopen-plan">다시 열기</button></div>` : ''}
   <div class="days">
@@ -1207,7 +1207,7 @@ function moneyTab(r) {
     <div class="card">${empty('wallet', '아직 기록된 지출이 없어요', '항공권, 숙소처럼 미리 낸 돈부터 적어보세요.', `<button class="btn pri" data-act="add-exp">${I('plus')}첫 지출 기록</button>`)}</div>`;
   }
   return `<div class="sec"><div><h2>함께 쓴 돈</h2><p>누가 냈는지만 적으면, 누가 누구에게 얼마 보낼지 계산해 드려요.</p></div>
-    <div class="acts"><button class="btn pri" data-act="add-exp">${I('plus')}지출 추가</button></div></div>
+    <div class="acts"><button class="btn ghost" data-act="xl-out" title="엑셀로 받기">${I('down2', 16)}엑셀</button><button class="btn pri" data-act="add-exp">${I('plus')}지출 추가</button></div></div>
   <div class="card">
     <div class="stats"><div><div class="k">총 지출</div><div class="v">${won(total)}</div></div><div><div class="k">1인 평균</div><div class="v">${won(total / Math.max(1, r.members.length))}</div></div><div><div class="k">내 몫</div><div class="v">${won(mine)}</div></div></div>
     <div style="padding:0 20px 18px"><div class="bar">${byCat.map(([c, v]) => `<i title="${c.n} ${won(v)}" style="width:${(v / total) * 100}%;background:${c.c}"></i>`).join('')}</div>
@@ -1421,6 +1421,116 @@ function installRow() {
   return `<div class="group-title">앱으로 쓰기</div><div class="group"><div class="item"><div class="grow"><b>홈 화면에 추가</b><div class="faint" style="font-size:13px">${ios ? 'Safari 아래 공유 버튼 → "홈 화면에 추가"를 눌러주세요.' : '앱처럼 바로 열리고, 인터넷이 약해도 일정·티켓을 볼 수 있어요.'}</div></div>${ios ? '' : '<button class="btn sm" data-act="install">설치</button>'}</div></div>`;
 }
 if ('serviceWorker' in navigator && location.protocol === 'https:') addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+
+// ───── 엑셀 주고받기 (SheetJS는 필요할 때만 불러와요) ─────
+function loadXLSX() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  return (loadXLSX.p ||= new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload = () => res(window.XLSX); s.onerror = () => { loadXLSX.p = null; rej(new Error('엑셀 기능을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.')); };
+    document.head.appendChild(s);
+  }));
+}
+const XL = {
+  places: ['일차', '순서', '시간', '이름', '분류', '주소', '메모', '하트', '다녀옴', '제안한 사람', 'ID'],
+  expenses: ['일차', '항목', '금액', '분류', '낸 사람', '나눈 사람', '장소', '1인 금액', 'ID'],
+  checklist: ['항목', '담당', '챙김', 'ID'],
+};
+async function exportExcel(r) {
+  const X = await loadXLSX();
+  const mn = (id) => (id ? member(r, id).name : '');
+  const sheet = (head, rows, widths) => { const ws = X.utils.aoa_to_sheet([head, ...rows]); ws['!cols'] = widths.map((w) => ({ wch: w })); return ws; };
+  const places = r.places.slice().sort((a, b) => (a.day || 99) - (b.day || 99) || sortPlan(a, b))
+    .map((p) => [p.day || '', p.day ? dayItems(r, p.day).indexOf(p) + 1 : '', p.time || '', p.name, cat(p.cat).n, p.addr || '', p.memo || '', p.hearts.length, p.visited ? 'O' : '', mn(p.by), p.id]);
+  const exps = r.expenses.slice().sort((a, b) => expDay(r, a) - expDay(r, b) || a.at - b.at)
+    .map((e) => [expDay(r, e) || '공통', e.title, e.amount, ecat(e.cat).n, mn(e.payer), e.split.map(mn).join(', '), (e.pid && r.places.find((p) => p.id === e.pid)?.name) || '', Math.round(e.amount / Math.max(1, e.split.length)), e.id]);
+  const { tx, bal } = settle(r);
+  const info = [['여행 이름', r.name], ['여행지', r.dest || '미정'], ['날짜', range(r)], ['기간', nights(r)], ['일행', r.members.map((m) => m.name).join(', ')], [],
+    ['총 지출', r.expenses.reduce((s, e) => s + e.amount, 0)], [], ['정산', '', ''], ['보내는 사람', '받는 사람', '금액'], ...tx.map((t) => [mn(t.from), mn(t.to), t.amt]), [],
+    ['사람별', '낸 돈', '받을(+)/보낼(-) 돈'], ...r.members.map((m) => [m.name, r.expenses.filter((e) => e.payer === m.id).reduce((s, e) => s + e.amount, 0), Math.round(bal[m.id] || 0)]), [],
+    ['※ 장소·지출·준비물 시트를 고친 뒤 모아여행에서 "엑셀 올리기"를 하면 반영돼요. ID 칸은 지우지 마세요(새 줄은 비워두면 돼요).']];
+  const wb = X.utils.book_new();
+  const wi = X.utils.aoa_to_sheet(info); wi['!cols'] = [{ wch: 14 }, { wch: 28 }, { wch: 18 }];
+  X.utils.book_append_sheet(wb, wi, '여행 정보');
+  X.utils.book_append_sheet(wb, sheet(XL.places, places, [5, 5, 7, 22, 6, 30, 30, 5, 6, 10, 12]), '장소·일정');
+  X.utils.book_append_sheet(wb, sheet(XL.expenses, exps, [6, 20, 10, 6, 8, 20, 16, 10, 12]), '지출');
+  X.utils.book_append_sheet(wb, sheet(XL.checklist, r.checklist.map((c) => [c.text, mn(c.who) || '공용', c.done ? 'O' : '', c.id]), [24, 8, 6, 12]), '준비물');
+  X.writeFile(wb, `모아여행-${r.name}.xlsx`);
+  toast('엑셀 파일을 받았어요');
+}
+function importExcel(r) {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.xlsx,.xls,.csv';
+  inp.onchange = async () => {
+    const f = inp.files[0]; if (!f) return;
+    try {
+      const X = await loadXLSX();
+      const wb = X.read(await f.arrayBuffer());
+      const rows = (re) => { const n = wb.SheetNames.find((x) => re.test(x)) || (wb.SheetNames.length === 1 ? wb.SheetNames[0] : null); return n ? X.utils.sheet_to_json(wb.Sheets[n], { defval: '' }) : []; };
+      applyExcel(r, rows(/장소|일정|place/i), rows(/지출|정산|expense|money/i), rows(/준비|pack|check/i));
+    } catch (e) { toast(e.message || '엑셀 파일을 읽지 못했어요'); }
+  };
+  inp.click();
+}
+async function applyExcel(r, pr, er, cr) {
+  const str = (v) => String(v ?? '').trim();
+  const num = (v) => +String(v ?? '').replace(/[^\d.-]/g, '') || 0;
+  const yes = (v) => /^(o|y|yes|true|1|v|✓|✔|완료|챙김)$/i.test(str(v));
+  const n = dayCount(r), me = meId(r);
+  const findCat = (list, v, d) => list.find((c) => c.n === str(v) || c.k === str(v))?.k || d;
+  const newMembers = [];
+  const mid = (name) => { name = str(name); if (!name || name === '공용') return null; let m = r.members.find((x) => x.name === name); if (!m) { m = { id: uid(), name: name.slice(0, 12), color: COLORS[r.members.length % COLORS.length], upd: now() }; r.members.push(m); newMembers.push(m.name); } return m.id; };
+  const plan = { pAdd: [], pUpd: [], eAdd: [], eUpd: [], cAdd: [], cUpd: [] };
+  pr.forEach((x) => {
+    const name = str(x['이름']); if (!name) return;
+    const day = Math.round(num(x['일차'])); const v = { name: name.slice(0, 60), cat: findCat(CATS, x['분류'], 'etc'), addr: str(x['주소']), memo: str(x['메모']), time: /^\d{1,2}:\d{2}$/.test(str(x['시간'])) ? str(x['시간']).padStart(5, '0') : '', day: day >= 1 && day <= n ? day : null, order: num(x['순서']) || 0, visited: yes(x['다녀옴']) };
+    const old = r.places.find((p) => p.id === str(x.ID)) || r.places.find((p) => p.name === name);
+    if (old) {
+      if (v.day === (old.day || null) && v.order === dayItems(r, old.day || 0).indexOf(old) + 1) delete v.order;
+      if (Object.keys(v).every((k) => String(old[k] ?? '') === String(v[k] ?? '') || (k === 'visited' && !!old.visited === v.visited))) return;
+    }
+    (old ? plan.pUpd : plan.pAdd).push([old, v]);
+  });
+  er.forEach((x) => {
+    const title = str(x['항목']), amount = Math.round(num(x['금액'])); if (!title || !amount) return;
+    const day = Math.round(num(x['일차']));
+    const v = { title: title.slice(0, 60), amount, cat: findCat(ECATS, x['분류'], 'etc'), _payer: x['낸 사람'], _split: str(x['나눈 사람']), _place: str(x['장소']), day: day >= 1 && day <= n ? day : 0 };
+    const old = r.expenses.find((e) => e.id === str(x.ID));
+    if (old) { const nm = (id) => member(r, id).name; const same = old.title === v.title && old.amount === v.amount && old.cat === v.cat && expDay(r, old) === v.day && nm(old.payer) === str(v._payer) && old.split.map(nm).join(', ') === v._split.split(/[,，、/]/).map(str).join(', ') && ((old.pid && r.places.find((q) => q.id === old.pid)?.name) || '') === v._place; if (same) return; }
+    (old ? plan.eUpd : plan.eAdd).push([old, v]);
+  });
+  cr.forEach((x) => {
+    const text = str(x['항목']); if (!text) return;
+    const old = r.checklist.find((c) => c.id === str(x.ID)) || r.checklist.find((c) => c.text === text);
+    if (old && old.text === text && !!old.done === yes(x['챙김']) && ((old.who && member(r, old.who).name) || '공용') === (str(x['담당']) || '공용')) return;
+    (old ? plan.cUpd : plan.cAdd).push([old, { text: text.slice(0, 60), _who: x['담당'], done: yes(x['챙김']) }]);
+  });
+  const parts = [['장소', plan.pAdd, plan.pUpd], ['지출', plan.eAdd, plan.eUpd], ['준비물', plan.cAdd, plan.cUpd]].filter(([, a, u]) => a.length || u.length)
+    .map(([k, a, u]) => `${k} ${a.length ? `${a.length}개 추가` : ''}${a.length && u.length ? ' · ' : ''}${u.length ? `${u.length}개 수정` : ''}`);
+  if (!parts.length) return toast(pr.length || er.length || cr.length ? '바뀐 내용이 없어요' : '반영할 내용을 찾지 못했어요. 모아여행에서 받은 엑셀 양식인지 확인해 주세요.');
+  if (!(await confirmBox({ title: '엑셀 내용을 반영할까요?', msg: `${parts.join('<br>')}<br><br>엑셀에 없는 기존 항목은 지우지 않아요.`, ok: '반영하기' }))) return;
+  const t = now();
+  plan.pAdd.forEach(([, v]) => r.places.push({ id: uid(), ...v, by: me, hearts: [me], comments: [], at: t, upd: t }));
+  plan.pUpd.forEach(([p, v]) => { Object.assign(p, v); p.upd = t; });
+  const pidOf = (name) => (name ? r.places.find((p) => p.name === name)?.id || '' : '');
+  const expV = (v) => { const split = v._split ? v._split.split(/[,，、/]/).map(mid).filter(Boolean) : r.members.map((m) => m.id); const o = { title: v.title, amount: v.amount, cat: v.cat, day: v.day, payer: mid(v._payer) || me, split: split.length ? split : r.members.map((m) => m.id), pid: pidOf(v._place) }; return o; };
+  plan.eAdd.forEach(([, v]) => r.expenses.push({ id: uid(), ...expV(v), photos: [], at: t, upd: t }));
+  plan.eUpd.forEach(([e, v]) => { Object.assign(e, expV(v)); e.upd = t; });
+  plan.cAdd.forEach(([, v]) => r.checklist.push({ id: uid(), text: v.text, who: mid(v._who), done: v.done, upd: t }));
+  plan.cUpd.forEach(([c, v]) => { Object.assign(c, { text: v.text, who: mid(v._who), done: v.done }); c.upd = t; });
+  sysMsg(r, `${member(r, me).name}님이 엑셀로 ${parts.join(', ')}했어요`);
+  touch(r); render(); toast(`반영했어요${newMembers.length ? ` · 새 일행: ${newMembers.join(', ')}` : ''}`);
+  // 위치가 없는 새 장소는 지도 검색으로 좌표를 채워요 (최대 20곳)
+  const need = r.places.filter((p) => !p.lat && p.name).slice(0, 20);
+  if (!need.length) return;
+  toast(`장소 ${need.length}곳의 위치를 찾는 중…`);
+  let ok = 0;
+  for (const p of need) {
+    try { const res = await searchPlaces(`${r.dest || ''} ${p.name} ${p.addr || ''}`.trim(), r); const hit = res?.items?.[0]; if (hit?.lat) { Object.assign(p, { lat: hit.lat, lng: hit.lng, addr: p.addr || hit.addr || '', kid: hit.kid, gid: hit.gid, upd: now() }); ok++; } } catch (e) { /* 다음 장소 */ }
+  }
+  touch(r); render(); toast(`위치를 ${ok}/${need.length}곳 찾았어요${ok < need.length ? '. 못 찾은 곳은 주소를 적어주세요' : ''}`);
+}
+
 function settingsTab(r) {
   const k = mapKeys(), pv = provider(r);
   return `<div class="sec"><div><h2>여행방 설정</h2><p>기본 정보, 일행, 지도와 공유를 관리해요.</p></div></div>
@@ -1453,6 +1563,7 @@ function settingsTab(r) {
   <div class="group">
     <div class="item"><div class="grow"><b>공유 링크</b><div class="faint" style="font-size:13px">링크에 여행방 전체가 담겨요. 친구가 열면 내용이 자동으로 합쳐져요.</div></div><button class="btn pri sm" data-act="share">${I('link', 15)}만들기</button></div>
     <div class="item"><div class="grow"><b>파일로 내보내기</b><div class="faint" style="font-size:13px">사진까지 모두 담긴 백업 파일(.json)</div></div><button class="btn sm" data-act="export">${I('down2', 15)}내보내기</button></div>
+    <div class="item"><div class="grow"><b>엑셀로 주고받기</b><div class="faint" style="font-size:13px">장소·일정·지출·준비물을 엑셀로 받아 고치고, 다시 올리면 반영돼요. 구글 시트에서도 열려요.</div></div><div class="row" style="gap:6px;flex:none"><button class="btn sm" data-act="xl-out">${I('down2', 15)}받기</button><button class="btn sm" data-act="xl-in">${I('upload', 15)}올리기</button></div></div>
     <div class="item"><div class="grow"><b>가져오기</b><div class="faint" style="font-size:13px">받은 링크나 백업 파일을 합쳐요</div></div><button class="btn sm" data-act="import">${I('upload', 15)}가져오기</button></div>
   </div>
 
@@ -1713,6 +1824,8 @@ document.addEventListener('click', (ev) => {
       if (ui.planDay) $(`#day-${ui.planDay}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     },
     'plan-map': () => { ui.planMap = !ui.planMap; render(); },
+    'xl-out': () => exportExcel(r).catch((e) => toast(e.message)),
+    'xl-in': () => importExcel(r),
     install: () => { installEvt?.prompt(); installEvt?.userChoice.finally(() => { installEvt = null; render(); }); },
     'today-day': () => { ui.td = ui.td || {}; ui.td[r.id] = Math.max(1, Math.min(dayCount(r), +el.dataset.d)); render(); },
     'add-date-opt': () => dateOptModal(r),
