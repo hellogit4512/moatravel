@@ -727,3 +727,17 @@ th:hover .col-rs::after,.col-rs.on::after{background:var(--accent)}
 .today-wx .wx{font-size:14px;padding:4px 12px}
 .wx.clim{background:transparent;border:1px dashed var(--line-2);color:var(--muted);font-weight:600}
 .day-wx{display:flex;margin:-4px 0 6px}.day-wx .wx{font-size:12px}
+
+/* 날씨 띠 */
+.wx-strip{margin:0 0 14px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+.wx-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px}
+.wx-h .faint{font-size:12px}
+.wx-loc{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 10px;border:1px solid var(--line);border-radius:99px;background:var(--bg);font:inherit;font-size:12.5px;font-weight:600;color:var(--text);cursor:pointer;max-width:100%}
+.wx-loc .faint{margin-left:2px;font-size:11.5px}
+.wx-loc:hover{border-color:var(--accent)}
+.wx-days{display:flex;gap:8px;overflow-x:auto;margin-top:10px;padding-bottom:2px;scrollbar-width:thin}
+.wx-day{flex:1 0 110px;max-width:170px;display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:10px;background:var(--sunk);font-size:12px}
+.wx-day b{font-size:16px;font-variant-numeric:tabular-nums}
+.wx-day b .faint{font-size:13px;font-weight:500}
+.wx-day.clim{background:transparent;border:1px dashed var(--line-2)}
+.wx-res{display:flex;flex-direction:column;gap:6px}

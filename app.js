@@ -1075,6 +1075,44 @@ function placeInDay(r, p, d, index) {
 const WX = (() => { try { return JSON.parse(localStorage.getItem('moa.wx')) || {}; } catch (e) { return {}; } })();
 const wxIcon = (c) => (c === 0 ? '☀️' : c <= 2 ? '🌤️' : c === 3 ? '☁️' : c <= 48 ? '🌫️' : c <= 57 ? '🌦️' : c <= 67 ? '🌧️' : c <= 77 ? '❄️' : c <= 82 ? '🌦️' : c <= 86 ? '🌨️' : '⛈️');
 const wxName = (c) => (c === 0 ? '맑음' : c <= 2 ? '대체로 맑음' : c === 3 ? '흐림' : c <= 48 ? '안개' : c <= 57 ? '이슬비' : c <= 67 ? '비' : c <= 77 ? '눈' : c <= 82 ? '소나기' : c <= 86 ? '눈보라' : '뇌우');
+function wxStrip(r) {
+  if (undated(r)) return '';
+  const w = WX[r.id], n = dayCount(r), cells = Array.from({ length: n }, (_, i) => [i + 1, wxFor(r, i + 1)]).filter(([, x]) => x);
+  const today = new Date(isoDate(new Date())), far = Math.round((new Date(r.start) - today) / 864e5) > 400, over = new Date(r.end) < today;
+  if (far || over) return '';
+  const clim = cells[0]?.[1]?.clim;
+  return `<section class="wx-strip">
+    <div class="wx-h"><b>날씨</b><span class="faint">${cells.length ? (clim ? '예년 평균 · 출발 16일 전부터 실제 예보' : '일기예보') : '불러오는 중…'}</span><span class="sp"></span>
+      <button class="wx-loc" data-act="wx-loc" title="날씨 기준 위치 바꾸기">${I('pin', 13)}${esc(r.wxLoc?.name || w?.where || r.dest || '위치 정하기')}<span class="faint">변경</span></button></div>
+    ${cells.length ? `<div class="wx-days">${cells.map(([d, x]) => `<div class="wx-day ${x.clim ? 'clim' : ''}" title="${x.clim ? `최근 ${x.yrs}년 같은 날 평균${x.rain ? ` · ${x.yrs}년 중 ${x.rain}번 비` : ''}` : `${wxName(x.c)}${x.p != null ? ` · 비 올 확률 ${x.p}%` : ''}`}"><span class="faint">${d}일차 · ${dayLabel(r, d)}</span><b>${x.clim ? '' : wxIcon(x.c) + ' '}${Math.round(x.hi)}°<span class="faint">/${Math.round(x.lo)}°</span></b>${x.clim ? (x.rain >= 2 ? '<span class="wx-p">☔ 비 잦음</span>' : '') : x.p >= 40 ? `<span class="wx-p">☔ ${x.p}%</span>` : ''}</div>`).join('')}</div>` : ''}
+  </section>`;
+}
+function wxLocModal(r) {
+  const f = openModal({
+    title: '날씨 기준 위치',
+    body: `<p class="faint" style="margin:0;font-size:13px">지금: <b style="color:var(--text)">${esc(r.wxLoc?.name || WX[r.id]?.where || '자동')}</b>${r.wxLoc ? '' : ' (자동: 모아둔 장소들의 가운데, 없으면 여행지 이름)'}</p>
+      <div class="row"><input type="search" name="q" class="grow" placeholder="도시나 지역 이름 (예: 후쿠오카, 유후인)" value="${esc(r.dest || '')}" autocomplete="off"><button type="button" class="btn" data-s>${I('search', 15)}찾기</button></div>
+      <div class="wx-res"></div>
+      ${r.wxLoc ? '<button type="button" class="btn sm ghost" data-auto style="align-self:flex-start">자동으로 되돌리기</button>' : ''}`,
+  });
+  const box = $('.wx-res', f);
+  const find = async () => {
+    const q = f.q.value.trim(); if (!q) return;
+    box.innerHTML = '<p class="faint" style="margin:0">찾는 중…</p>';
+    try {
+      const js = await (await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&accept-language=ko&q=${enc(q)}`)).json();
+      box.innerHTML = js.length ? js.map((x, i) => `<button type="button" class="pd-exp" data-i="${i}"><span class="grow"><b>${esc(x.name || x.display_name.split(',')[0])}</b><div class="faint" style="font-size:12px">${esc(x.display_name)}</div></span></button>`).join('') : '<p class="faint" style="margin:0">찾지 못했어요. 다른 이름으로 찾아보세요.</p>';
+      $$('[data-i]', box).forEach((b) => b.addEventListener('click', () => { const x = js[+b.dataset.i]; setWxLoc(r, { name: x.name || x.display_name.split(',')[0], lat: +(+x.lat).toFixed(4), lng: +(+x.lon).toFixed(4) }); }));
+    } catch (e) { box.innerHTML = '<p class="faint" style="margin:0">검색하지 못했어요. 잠시 뒤 다시 해주세요.</p>'; }
+  };
+  $('[data-s]', f).addEventListener('click', find);
+  f.q.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); find(); } });
+  $('[data-auto]', f)?.addEventListener('click', () => setWxLoc(r, null));
+}
+function setWxLoc(r, loc) {
+  r = room() || r; r.wxLoc = loc; delete WX[r.id]; touch(r); closeModal(); render(); loadWeather(r);
+  toast(loc ? `날씨를 '${loc.name}' 기준으로 보여드려요` : '날씨 위치를 자동으로 되돌렸어요');
+}
 function wxFor(r, d) {
   if (undated(r)) return null;
   const w = WX[r.id]; if (!w) return null;
@@ -1091,11 +1129,11 @@ async function loadWeather(r) {
   const today = new Date(isoDate(new Date())), s0 = new Date(r.start), e0 = new Date(r.end);
   const ahead = Math.round((s0 - today) / 864e5);
   if (e0 < today || ahead > 400) return;
-  const mode = ahead > 15 ? 'clim' : 'fc', key = `${mode}${r.start}${r.end}${r.dest}`, w = WX[r.id];
+  const L = r.wxLoc, mode = ahead > 15 ? 'clim' : 'fc', key = `${mode}${r.start}${r.end}${r.dest}${L ? L.lat + ',' + L.lng : ''}`, w = WX[r.id];
   if (w && w.key === key && Date.now() - w.at < (mode === 'fc' ? 3 : 24) * 3600e3) return;
   wxBusy[r.id] = true;
   try {
-    let c = center(r);
+    let c = L?.lat ? [L.lat, L.lng] : center(r), where = L?.name || (c ? `${r.dest || '여행지'} · 장소들 가운데` : r.dest);
     // 여행지 이름은 도시 단위로 찾아요 (장소 검색은 같은 이름의 가게가 잡힐 수 있어요)
     if (!c && r.dest) { try { const x = (await (await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${enc(r.dest)}`)).json())?.[0]; if (x) c = [+x.lat, +x.lon]; } catch (e) { /* 다음 방법 */ } }
     if (!c && r.dest) { const g = await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${enc(r.dest)}&count=1`)).json(); const x = g?.results?.[0]; if (x) c = [x.latitude, x.longitude]; }
@@ -1110,7 +1148,7 @@ async function loadWeather(r) {
       }));
       const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length, days = {};
       Object.entries(acc).forEach(([k, o]) => { if (o.n) days[isoDate(addDays(r.start, +k - 1))] = { clim: true, hi: avg(o.hi), lo: avg(o.lo), rain: o.rain, yrs: o.n }; });
-      WX[r.id] = { at: Date.now(), key, days };
+      WX[r.id] = { at: Date.now(), key, days, where };
       try { localStorage.setItem('moa.wx', JSON.stringify(WX)); } catch (e) { /* noop */ }
       if (room()?.id === r.id) safeRender();
       return;
@@ -1118,7 +1156,7 @@ async function loadWeather(r) {
     const st = isoDate(s0 < today ? today : s0), en = isoDate(new Date(Math.min(e0, addDays(isoDate(today), 15))));
     const js = await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${c[0].toFixed(3)}&longitude=${c[1].toFixed(3)}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&start_date=${st}&end_date=${en}`)).json();
     const days = {}; (js?.daily?.time || []).forEach((t, i) => (days[t] = { c: js.daily.weather_code[i], hi: js.daily.temperature_2m_max[i], lo: js.daily.temperature_2m_min[i], p: js.daily.precipitation_probability_max?.[i] }));
-    WX[r.id] = { at: Date.now(), key, days };
+    WX[r.id] = { at: Date.now(), key, days, where };
     try { localStorage.setItem('moa.wx', JSON.stringify(WX)); } catch (e) { /* noop */ }
     if (room()?.id === r.id) safeRender();
   } catch (e) { /* 날씨는 없어도 돼요 */ } finally { wxBusy[r.id] = false; }
@@ -1409,13 +1447,13 @@ function planTab(r) {
     <button class="btn sm pend-btn ${pending.length ? 'has' : ''}" data-act="pending" title="날짜 미정 장소">${I('pin', 15)}미정 <b>${pending.length}</b></button>
     <button class="btn sm ${showMap ? '' : 'pri'}" data-act="map-toggle" aria-pressed="${showMap}" title="${showMap ? '지도 숨기기' : '지도 보이기'}" aria-label="${showMap ? '지도 끄기' : '지도 켜기'}">${I('map', 15)}<span class="pb-t">${showMap ? '지도 끄기' : '지도 켜기'}</span></button>
   </div>
+  ${wxStrip(r)}
   <div class="places-layout ${showMap ? (isWide() ? 'split' : 'stack') : ''} plan-layout"><div class="plan-main">
   <div class="days ${cur ? 'single' : ''}">
   ${dayList.map((d) => {
     const items = dayItems(r, d), col = COLORS[(d - 1) % COLORS.length];
     const md = !cur && ui.mapDay === d;
     return `<section class="day ${cur === d || md ? 'on' : ''} ${!cur && ui.mapDay && !md ? 'dim' : ''}" data-drop="${d}" id="day-${d}" ${cur ? '' : `data-act="map-day" data-d="${d}" title="눌러서 지도에 ${d}일차만 표시"`}>
-      ${wxChip(r, d) ? `<div class="day-wx">${wxChip(r, d)}</div>` : ''}
       <div class="day-head"><span class="day-pick"><span class="day-no" style="color:${col}">${d}일차</span><span class="day-date">${dayLabel(r, d)}</span>${md ? `<span class="tag accent" style="font-size:11px">${I('map', 11)} 지도에 표시 중</span>` : ''}</span><span class="sp"></span>
         <button class="day-spent ${daySpent(r, d) ? '' : 'zero'}" data-act="add-exp" data-d="${d}" title="${d}일차 지출 추가">${I('wallet', 14)}${daySpent(r, d) ? won(daySpent(r, d)) : '지출'}<span class="plus">＋</span></button>
         ${items.length > 1 ? `<a class="btn ghost sm" href="${esc(routeUrl(r, items))}" target="_blank" rel="noopener" title="${PNAME[provider(r)]} 경로">${I('route', 16)}경로</a>` : ''}</div>
@@ -2249,6 +2287,7 @@ document.addEventListener('click', (ev) => {
       if (ui.mapDay && ui.mapOff) { ui.mapOff = false; saveMapOff(); }
       render();
     },
+    'wx-loc': () => wxLocModal(r),
     'map-toggle': () => { ui.mapOff = !ui.mapOff; saveMapOff(); render(); },
     pending: () => pendingDrawer(r, +el.dataset.d || 0),
     'place-detail': () => placeDetail(r, P(el.dataset.id)),
