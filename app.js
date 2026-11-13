@@ -729,7 +729,7 @@ function render() {
     if (mapCtl.kind) $('.map-src')?.replaceChildren(document.createTextNode(PNAME[mapCtl.kind]));
   }
   if (r && rt.tab === 'chat') { const el = $('.msgs'); if (el) el.scrollTop = el.scrollHeight; markSeen(r); }
-  if (r) hydratePhotos();
+  if (r) { hydratePhotos(); if (rt.tab === 'plan' || rt.tab === 'today') loadWeather(r); }
   scrollTo(0, y);
   if (sx) { const w = $('.sheet-wrap'); if (w) w.scrollLeft = sx; }
   if (keep) $(keep)?.focus({ preventScroll: true });
@@ -1069,6 +1069,41 @@ function placeInDay(r, p, d, index) {
   if (d) { items.splice(index ?? items.length, 0, p); items.forEach((x, k) => { x.order = k; x.upd = now(); }); }
   touch(r, p);
 }
+// ───── 날씨 (Open-Meteo, 무료·키 없음) — 여행 날짜가 16일 안으로 들어오면 일차마다 표시 ─────
+const WX = (() => { try { return JSON.parse(localStorage.getItem('moa.wx')) || {}; } catch (e) { return {}; } })();
+const wxIcon = (c) => (c === 0 ? '☀️' : c <= 2 ? '🌤️' : c === 3 ? '☁️' : c <= 48 ? '🌫️' : c <= 57 ? '🌦️' : c <= 67 ? '🌧️' : c <= 77 ? '❄️' : c <= 82 ? '🌦️' : c <= 86 ? '🌨️' : '⛈️');
+const wxName = (c) => (c === 0 ? '맑음' : c <= 2 ? '대체로 맑음' : c === 3 ? '흐림' : c <= 48 ? '안개' : c <= 57 ? '이슬비' : c <= 67 ? '비' : c <= 77 ? '눈' : c <= 82 ? '소나기' : c <= 86 ? '눈보라' : '뇌우');
+function wxFor(r, d) {
+  if (undated(r)) return null;
+  const w = WX[r.id]; if (!w) return null;
+  return w.days?.[isoDate(addDays(r.start, d - 1))] || null;
+}
+function wxChip(r, d) {
+  const w = wxFor(r, d); if (!w) return '';
+  return `<span class="wx" title="${wxName(w.c)} · 최고 ${Math.round(w.hi)}° / 최저 ${Math.round(w.lo)}°${w.p != null ? ` · 비 올 확률 ${w.p}%` : ''}">${wxIcon(w.c)} ${Math.round(w.hi)}°<span class="faint">/${Math.round(w.lo)}°</span>${w.p >= 40 ? `<span class="wx-p">☔${w.p}%</span>` : ''}</span>`;
+}
+const wxBusy = {};
+async function loadWeather(r) {
+  if (!r || r.demo || undated(r) || wxBusy[r.id]) return;
+  const today = new Date(isoDate(new Date())), s0 = new Date(r.start), e0 = new Date(r.end);
+  const ahead = Math.round((s0 - today) / 864e5);
+  if (ahead > 15 || e0 < today) return;
+  const w = WX[r.id];
+  if (w && Date.now() - w.at < 3 * 3600e3 && w.key === `${r.start}${r.end}${r.dest}`) return;
+  wxBusy[r.id] = true;
+  try {
+    let c = center(r);
+    if (!c && r.dest) { try { const hit = (await searchPlaces(r.dest, r))?.items?.[0]; if (hit?.lat) c = [hit.lat, hit.lng]; } catch (e) { /* 다음 방법 */ } }
+    if (!c && r.dest) { const g = await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${enc(r.dest)}&count=1`)).json(); const x = g?.results?.[0]; if (x) c = [x.latitude, x.longitude]; }
+    if (!c) return;
+    const st = isoDate(s0 < today ? today : s0), en = isoDate(new Date(Math.min(e0, addDays(isoDate(today), 15))));
+    const js = await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${c[0].toFixed(3)}&longitude=${c[1].toFixed(3)}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&start_date=${st}&end_date=${en}`)).json();
+    const days = {}; (js?.daily?.time || []).forEach((t, i) => (days[t] = { c: js.daily.weather_code[i], hi: js.daily.temperature_2m_max[i], lo: js.daily.temperature_2m_min[i], p: js.daily.precipitation_probability_max?.[i] }));
+    WX[r.id] = { at: Date.now(), key: `${r.start}${r.end}${r.dest}`, days };
+    try { localStorage.setItem('moa.wx', JSON.stringify(WX)); } catch (e) { /* noop */ }
+    if (room()?.id === r.id) safeRender();
+  } catch (e) { /* 날씨는 없어도 돼요 */ } finally { wxBusy[r.id] = false; }
+}
 // ───── 오늘 (현장 모드) ─────
 const todayDay = (r) => Math.min(dayCount(r), ui.td?.[r.id] || tripToday(r) || 1);
 function todayTab(r) {
@@ -1080,7 +1115,7 @@ function todayTab(r) {
   return `<div class="today">
   <div class="today-h">
     <button class="btn ghost icon" data-act="today-day" data-d="${d - 1}" ${d <= 1 ? 'disabled' : ''} aria-label="이전 날">${I('back', 18)}</button>
-    <div class="grow" style="text-align:center"><div class="today-day" style="color:${col}">${d}일차${live ? ' <span class="live">오늘</span>' : ''}</div><div class="faint" style="font-size:13px">${undated(r) ? '날짜 미정' : dayLabel(r, d)}${before ? ` · 여행까지 ${dday(r)}` : ''}</div></div>
+    <div class="grow" style="text-align:center"><div class="today-day" style="color:${col}">${d}일차${live ? ' <span class="live">오늘</span>' : ''}</div><div class="faint" style="font-size:13px">${undated(r) ? '날짜 미정' : dayLabel(r, d)}${before ? ` · 여행까지 ${dday(r)}` : ''}</div>${wxChip(r, d) ? `<div class="today-wx">${wxChip(r, d)}</div>` : ''}</div>
     <button class="btn ghost icon" data-act="today-day" data-d="${d + 1}" ${d >= n ? 'disabled' : ''} aria-label="다음 날" style="transform:rotate(180deg)">${I('back', 18)}</button>
   </div>
   ${items.length ? `
@@ -1361,7 +1396,7 @@ function planTab(r) {
     const items = dayItems(r, d), col = COLORS[(d - 1) % COLORS.length];
     const md = !cur && ui.mapDay === d;
     return `<section class="day ${cur === d || md ? 'on' : ''} ${!cur && ui.mapDay && !md ? 'dim' : ''}" data-drop="${d}" id="day-${d}" ${cur ? '' : `data-act="map-day" data-d="${d}" title="눌러서 지도에 ${d}일차만 표시"`}>
-      <div class="day-head"><span class="day-pick"><span class="day-no" style="color:${col}">${d}일차</span><span class="day-date">${dayLabel(r, d)}</span>${md ? `<span class="tag accent" style="font-size:11px">${I('map', 11)} 지도에 표시 중</span>` : ''}</span><span class="sp"></span>
+      <div class="day-head"><span class="day-pick"><span class="day-no" style="color:${col}">${d}일차</span><span class="day-date">${dayLabel(r, d)}</span>${wxChip(r, d)}${md ? `<span class="tag accent" style="font-size:11px">${I('map', 11)} 지도에 표시 중</span>` : ''}</span><span class="sp"></span>
         <button class="day-spent ${daySpent(r, d) ? '' : 'zero'}" data-act="add-exp" data-d="${d}" title="${d}일차 지출 추가">${I('wallet', 14)}${daySpent(r, d) ? won(daySpent(r, d)) : '지출'}<span class="plus">＋</span></button>
         ${items.length > 1 ? `<a class="btn ghost sm" href="${esc(routeUrl(r, items))}" target="_blank" rel="noopener" title="${PNAME[provider(r)]} 경로">${I('route', 16)}경로</a>` : ''}</div>
       ${items.length ? `<ol class="stops">${items.map((p, j) => `<li class="stop ${p.visited ? 'visited' : ''} ${ui.sel === p.id ? 'sel' : ''}" data-pid="${p.id}" ${lock ? '' : `draggable="true" data-drag="${p.id}"`} style="--c:${col}">
@@ -1917,7 +1952,8 @@ function settingsTab(r) {
 
   ${installRow()}
   <div class="group-title" style="color:var(--danger)">위험 구역</div>
-  <div class="group"><div class="item"><div class="grow"><b>이 여행방 지우기</b><div class="faint" style="font-size:13px">이 기기에서만 지워져요. 친구들 기기에는 남아 있어요.</div></div><button class="btn sm danger" data-act="del-room">지우기</button></div></div>`;
+  <div class="group"><div class="item"><div class="grow"><b>이 여행방 지우기</b><div class="faint" style="font-size:13px">이 기기에서만 지워져요. 친구들 기기에는 남아 있어요.</div></div><button class="btn sm danger" data-act="del-room">지우기</button></div>
+    ${shared(r) && S.sync[r.id].admin ? `<div class="item"><div class="grow"><b>서버에서 완전히 삭제</b><div class="faint" style="font-size:13px">방장만 할 수 있어요. 서버의 여행방과 사진이 모두 지워져 일행도 더 이상 열 수 없어요.</div></div><button class="btn sm danger" data-act="wipe-room">완전 삭제</button></div>` : ''}</div>`;
 }
 function keysModal() {
   const k = { kakao: S.keys?.kakao || '', google: S.keys?.google || '' };
@@ -2255,6 +2291,11 @@ document.addEventListener('click', (ev) => {
       }
     },
     export: () => { const blob = new Blob([JSON.stringify(r, null, 1)], { type: 'application/json' }); const a2 = document.createElement('a'); a2.href = URL.createObjectURL(blob); a2.download = `모아여행-${r.name}.json`; a2.click(); },
+    'wipe-room': async () => {
+      if (!(await confirmBox({ title: '서버에서 완전히 삭제할까요?', msg: `'${esc(r.name)}'의 장소·일정·정산·사진이 서버에서 모두 지워져요. 일행도 더 이상 열 수 없고, 되돌릴 수 없어요.`, ok: '완전 삭제', danger: true }))) return;
+      try { await api('DELETE', r.id); } catch (e) { if (e.status !== 404) return toast(e.message); }
+      delete S.rooms[r.id]; delete S.me[r.id]; delete S.sync[r.id]; save(); go('#/'); toast('서버에서 완전히 지웠어요');
+    },
     'del-room': async () => {
       if (await confirmBox({ title: '여행방을 지울까요?', msg: `'${esc(r.name)}'을(를) 이 기기에서 지워요. 공유 링크나 백업 파일이 없으면 되돌릴 수 없어요.`, ok: '지우기', danger: true })) {
         delete S.rooms[r.id]; delete S.me[r.id]; save(); go('#/');

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>모아여행 관리</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+:root{--bg:#f6faf8;--surface:#fff;--line:#e3ebe7;--text:#14211c;--muted:#5d6f67;--faint:#93a29b;--accent:#0fa37a;--danger:#e5484d;--sunk:#eef4f1}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1714;--surface:#16211d;--line:#26332e;--text:#e6efeb;--muted:#a3b3ac;--faint:#6f817a;--sunk:#1c2924}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 "Pretendard Variable",Pretendard,system-ui,sans-serif}
+main{max-width:1100px;margin:0 auto;padding:24px 16px 60px}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:18px;margin:24px 0 10px}
+.muted{color:var(--muted)}.faint{color:var(--faint);font-size:13px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+input{height:40px;border:1px solid var(--line);border-radius:10px;padding:0 12px;font:inherit;background:var(--surface);color:var(--text);min-width:0}
+button{height:36px;border:1px solid var(--line);border-radius:10px;padding:0 14px;font:inherit;font-weight:600;background:var(--surface);color:var(--text);cursor:pointer}
+button.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+button.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,var(--line))}
+button:disabled{opacity:.5}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-size:12px;font-weight:700}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tr.click{cursor:pointer}tr.click:hover td{background:var(--sunk)}
+.wrap{overflow-x:auto}
+.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.ph{position:relative;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--sunk)}
+.ph img{display:block;width:100%;aspect-ratio:1;object-fit:cover}
+.ph .bar{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;font-size:12px}
+.ph .bar button{height:26px;padding:0 8px;font-size:12px}
+pre{white-space:pre-wrap;word-break:break-all;font-size:12px;background:var(--sunk);padding:12px;border-radius:10px;max-height:360px;overflow:auto}
+.pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--sunk);color:var(--muted)}
+#msg{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#14211c;color:#fff;padding:10px 16px;border-radius:10px;font-weight:600;display:none}
+</style>
+</head>
+<body>
+<main>
+  <h1>모아여행 관리</h1>
+  <p class="muted" style="margin:0 0 16px">서버에 저장된 공유 여행방과 사진을 보고 지울 수 있어요. 이 페이지는 메뉴에 없고, 관리자 키가 있어야 열려요.</p>
+  <div class="card row" id="login">
+    <input type="password" id="tok" placeholder="관리자 키" style="flex:1;min-width:220px" autocomplete="off">
+    <button class="pri" id="go">열기</button>
+    <span class="faint">키는 이 브라우저에만 기억돼요.</span>
+  </div>
+  <div id="out"></div>
+</main>
+<div id="msg"></div>
+<script src="config.js"></script>
+<script>
+const API = (window.MOA_CONFIG || {}).syncUrl;
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const kb = (b) => (b > 1048576 ? (b / 1048576).toFixed(1) + 'MB' : Math.round(b / 1024) + 'KB');
+const dt = (t) => (t ? new Date(t).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' }) : '-');
+let tok = ''; try { tok = localStorage.getItem('moa.adminTok') || ''; } catch (e) {}
+const urls = [];
+function msg(t) { const m = $('#msg'); m.textContent = t; m.style.display = 'block'; clearTimeout(msg.t); msg.t = setTimeout(() => (m.style.display = 'none'), 2400); }
+async function call(path, method = 'GET') {
+  const r = await fetch(API + path, { method, headers: { Authorization: 'Bearer ' + tok } });
+  if (r.status === 401) { try { localStorage.removeItem('moa.adminTok'); } catch (e) {} $('#login').style.display = ''; throw new Error('관리자 키가 맞지 않아요'); }
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || '요청 실패');
+  return r.headers.get('Content-Type')?.includes('json') ? r.json() : r.blob();
+}
+async function list() {
+  urls.splice(0).forEach(URL.revokeObjectURL);
+  $('#out').innerHTML = '<p class="faint">불러오는 중…</p>';
+  try {
+    const { rooms } = await call('/admin/rooms');
+    $('#login').style.display = 'none';
+    const total = rooms.reduce((a, r) => a + (r.bytes || 0), 0);
+    $('#out').innerHTML = `<h2>여행방 ${rooms.length}개 <span class="faint">· 전체 약 ${kb(total)} / 무료 5GB</span></h2>
+      <p class="faint" style="margin:-6px 0 10px">예전에 만든 방은 누군가 한 번 열어야 이 목록에 나타나요.</p>
+      <div class="card wrap" style="padding:0"><table><thead><tr><th>이름</th><th>여행지</th><th>일행</th><th class="num">장소</th><th class="num">지출</th><th class="num">사진</th><th class="num">크기</th><th>마지막 수정</th></tr></thead><tbody>
+      ${rooms.map((r) => r.missing || r.error ? `<tr><td colspan="8" class="faint">${r.id} · 데이터 없음</td></tr>` : `<tr class="click" data-id="${r.id}"><td><b>${esc(r.name)}</b> ${r.hasPass ? '<span class="pill">비번</span>' : ''}<div class="faint">${r.id}</div></td><td>${esc(r.dest || '미정')}<div class="faint">${esc(r.start || '')}${r.end ? ' ~ ' + esc(r.end) : ''}</div></td><td>${esc((r.members || []).join(', '))}</td><td class="num">${r.places}</td><td class="num">${r.expenses}</td><td class="num">${r.photos}</td><td class="num">${kb(r.bytes)}</td><td>${dt(r.updatedAt)}</td></tr>`).join('') || '<tr><td colspan="8" class="faint">아직 없어요</td></tr>'}
+      </tbody></table></div>`;
+    document.querySelectorAll('tr.click').forEach((tr) => tr.onclick = () => detail(tr.dataset.id));
+  } catch (e) { $('#out').innerHTML = `<p class="faint">${esc(e.message)}</p>`; }
+}
+async function detail(id) {
+  $('#out').innerHTML = '<p class="faint">불러오는 중…</p>';
+  try {
+    const d = await call('/admin/rooms/' + id), r = d.room || {};
+    $('#out').innerHTML = `<div class="row" style="margin:8px 0"><button id="back">← 목록</button><span class="sp" style="flex:1"></span><button class="danger" id="wipe">이 여행방 완전 삭제</button></div>
+      <div class="card"><h2 style="margin-top:0">${esc(r.name)} <span class="faint">${id}</span></h2>
+        <div class="muted">${esc(r.dest || '여행지 미정')} · ${esc(r.start || '날짜 미정')}${r.end ? ' ~ ' + esc(r.end) : ''} · 일행 ${esc((r.members || []).map((m) => m.name).join(', '))}</div>
+        <div class="faint" style="margin-top:4px">만든 날 ${dt(d.meta.createdAt)} · 마지막 수정 ${dt(d.meta.updatedAt)} · 버전 ${d.meta.version}${d.meta.hasPass ? ' · 비밀번호 있음' : ''}</div>
+        <p class="faint">장소 ${(r.places || []).length} · 지출 ${(r.expenses || []).length} · 대화 ${(r.messages || []).length} · 서류 ${(r.docs || []).length} · 기록 ${(r.journal || []).length}</p>
+        <details><summary class="faint" style="cursor:pointer">원본 데이터 보기</summary><pre>${esc(JSON.stringify(r, null, 1))}</pre></details></div>
+      <h2>사진 ${d.photos.length}장 <span class="faint">· ${kb(d.photos.reduce((a, p) => a + p.size, 0))}</span></h2>
+      <div class="photos">${d.photos.map((p) => `<div class="ph" data-pid="${p.pid}"><img alt=""><div class="bar"><span class="faint">${kb(p.size)}${used(r, p.pid) ? '' : ' · <b style="color:var(--danger)">안 쓰임</b>'}</span><button class="danger" data-del="${p.pid}">삭제</button></div></div>`).join('') || '<p class="faint">사진이 없어요</p>'}</div>`;
+    $('#back').onclick = list;
+    $('#wipe').onclick = async () => { if (!confirm(`'${r.name}' 여행방과 사진을 서버에서 완전히 지울까요? 되돌릴 수 없어요.`)) return; await call('/admin/rooms/' + id, 'DELETE'); msg('삭제했어요'); list(); };
+    document.querySelectorAll('[data-del]').forEach((b) => b.onclick = async () => { if (!confirm('이 사진을 지울까요? 되돌릴 수 없어요.')) return; await call(`/admin/rooms/${id}/photos/${b.dataset.del}`, 'DELETE'); b.closest('.ph').remove(); msg('사진을 지웠어요'); });
+    for (const el of document.querySelectorAll('.ph')) { try { const u = URL.createObjectURL(await call(`/admin/rooms/${id}/photos/${el.dataset.pid}`)); urls.push(u); el.querySelector('img').src = u; } catch (e) {} }
+  } catch (e) { $('#out').innerHTML = `<p class="faint">${esc(e.message)}</p>`; }
+}
+// 여행방 어디에서도 쓰이지 않는 사진 표시
+function used(r, pid) { const ref = 'p:' + pid; return ['journal', 'docs', 'expenses'].some((k) => (r[k] || []).some((x) => (x.photos || []).includes(ref))); }
+$('#go').onclick = () => { tok = $('#tok').value.trim(); if (!tok) return; try { localStorage.setItem('moa.adminTok', tok); } catch (e) {} list(); };
+$('#tok').onkeydown = (e) => { if (e.key === 'Enter') $('#go').click(); };
+if (tok) list();
+</script>
+</body>
+</html>
