@@ -35,6 +35,7 @@ const KR = /한국|대한민국|국내|서울|부산|제주|강릉|속초|양양
 // ───────── 아이콘 ─────────
 const ICONS = {
   spark: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
+  refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/>',
   bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   chat: '<path d="M20.5 11.5a8.5 8.5 0 0 1-12.3 7.6L3.5 20.5l1.4-4.4A8.5 8.5 0 1 1 20.5 11.5z"/>',
   pin: '<path d="M12 21s-6.5-5.8-6.5-11a6.5 6.5 0 0 1 13 0c0 5.2-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
@@ -1287,7 +1288,7 @@ const placeSpent = (r, pid) => r.expenses.filter((e) => e.pid === pid).reduce((s
 function tripToday(r) { if (undated(r)) return 0; const d = Math.round((new Date(isoDate(new Date())) - new Date(r.start)) / 864e5) + 1; return d >= 1 && d <= dayCount(r) ? d : 0; }
 function expRow(r, e) {
   const pl = e.pid && r.places.find((p) => p.id === e.pid);
-  return `<button class="r" data-act="edit-exp" data-id="${e.id}"><span class="dot" style="--c:${ecat(e.cat).c}"></span><div class="grow"><b>${esc(e.title)}</b>${e.photos?.length ? ` <span class="faint" title="영수증 ${e.photos.length}장" style="display:inline-flex;vertical-align:-3px">${I('clip', 15)}</span>` : ''}<div class="faint" style="font-size:12px">${ecat(e.cat).n}${pl ? ` · ${I('pin', 11)} ${esc(pl.name)}` : ''} · ${esc(member(r, e.payer).name)} 결제 · ${e.split.length}명</div></div><div style="text-align:right"><div class="amt">${won(e.amount)}</div><div class="faint num" style="font-size:12px">1인 ${won(e.amount / Math.max(1, e.split.length))}</div></div></button>`;
+  return `<button class="r" data-act="edit-exp" data-id="${e.id}"><span class="dot" style="--c:${ecat(e.cat).c}"></span><div class="grow"><b>${esc(e.title)}</b>${e.photos?.length ? ` <span class="faint" title="영수증 ${e.photos.length}장" style="display:inline-flex;vertical-align:-3px">${I('clip', 15)}</span>` : ''}<div class="faint" style="font-size:12px">${ecat(e.cat).n}${pl ? ` · ${I('pin', 11)} ${esc(pl.name)}` : ''} · ${esc(member(r, e.payer).name)} 결제 · ${e.split.length}명</div></div><div style="text-align:right"><div class="amt">${won(e.amount)}</div><div class="faint num" style="font-size:12px">${e.cur && e.cur !== 'KRW' && curOf(e.cur) ? `${fmtCur(e.cur, e.orig)} · ` : ''}1인 ${won(e.amount / Math.max(1, e.split.length))}</div></div></button>`;
 }
 function settle(r) {
   const bal = {}; r.members.forEach((m) => (bal[m.id] = 0));
@@ -1326,6 +1327,7 @@ function moneyTab(r) {
     <div class="legend">${byCat.map(([c, v]) => `<span class="row" style="gap:6px"><span class="dot" style="--c:${c.c}"></span>${c.n} <b>${won(v)}</b></span>`).join('')}</div></div>
     ${dayBars(r)}
   </div>
+  ${fxBar(r)}
   <div class="two">
     <div>
       <div class="sec"><div><h2>이렇게 보내면 끝</h2><p>송금 횟수가 가장 적게 계산했어요.</p></div>${tx.length ? `<div class="acts"><button class="btn sm" data-act="copy-settle">${I('copy', 15)}복사</button></div>` : ''}</div>
@@ -1348,13 +1350,68 @@ function dayBars(r) {
   const max = Math.max(...vals.slice(1), 1);
   return `<div class="daybars"><div class="faint" style="font-size:12px;margin-bottom:10px">하루 지출${vals[0] ? ` · 여행 전·공통 ${won(vals[0])} 별도` : ''}</div><div class="daybars-g" style="--n:${n}">${vals.slice(1).map((v, i) => `<button class="db" data-act="jump-day" data-d="${i + 1}" title="${i + 1}일차 ${won(v)}"><span class="db-v">${v ? won(v).replace('원', '') : ''}</span><i style="height:${Math.max(v ? 6 : 2, (v / max) * 100)}%;background:${COLORS[i % COLORS.length]}"></i><span class="db-l">${i + 1}일차</span></button>`).join('')}</div></div>`;
 }
+// ───── 환율 ─────
+// 여행방마다 r.fx = { JPY: 9.2, USD: 1385 } (1단위당 원). 지출은 원화(amount)로 저장하고 현지 금액(orig)·통화(cur)·환율(rate)을 함께 남겨요
+const CURS = [
+  { k: 'JPY', s: '¥', n: '엔', u: 100 }, { k: 'USD', s: '$', n: '달러' }, { k: 'EUR', s: '€', n: '유로' }, { k: 'CNY', s: '元', n: '위안' },
+  { k: 'TWD', s: 'NT$', n: '대만 달러' }, { k: 'HKD', s: 'HK$', n: '홍콩 달러' }, { k: 'THB', s: '฿', n: '바트' }, { k: 'VND', s: '₫', n: '동', u: 100 },
+  { k: 'SGD', s: 'S$', n: '싱가포르 달러' }, { k: 'PHP', s: '₱', n: '페소' }, { k: 'GBP', s: '£', n: '파운드' }, { k: 'AUD', s: 'A$', n: '호주 달러' }, { k: 'CAD', s: 'C$', n: '캐나다 달러' },
+];
+const curOf = (k) => CURS.find((c) => c.k === k);
+const GUESS = [[/일본|도쿄|오사카|교토|후쿠오카|삿포로|오키나와|나고야|japan|tokyo|osaka/i, 'JPY'], [/미국|뉴욕|하와이|괌|사이판|LA|라스베이거스|샌프란|usa/i, 'USD'], [/대만|타이베이|가오슝/i, 'TWD'], [/홍콩|마카오/i, 'HKD'], [/태국|방콕|치앙마이|푸켓/i, 'THB'], [/베트남|다낭|하노이|호치민|나트랑|푸꾸옥/i, 'VND'], [/중국|상하이|베이징|칭다오/i, 'CNY'], [/싱가포르/i, 'SGD'], [/필리핀|세부|보라카이|마닐라/i, 'PHP'], [/영국|런던/i, 'GBP'], [/호주|시드니|멜버른/i, 'AUD'], [/캐나다|밴쿠버|토론토/i, 'CAD'], [/프랑스|파리|이탈리아|로마|스페인|독일|유럽|포르투갈|네덜란드|오스트리아|체코/i, 'EUR']];
+const guessCur = (r) => (GUESS.find(([re]) => re.test(`${r.dest} ${r.name}`)) || [])[1];
+const fxLabel = (k, rate) => { const c = curOf(k), u = c.u || 1; return `${c.s}${u} = ${won(rate * u)}`; };
+const fmtCur = (k, v) => { const c = curOf(k); return `${c.s}${(+v).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}`; };
+async function liveRate(k) {
+  const js = await (await fetch('https://open.er-api.com/v6/latest/KRW')).json();
+  const x = js?.rates?.[k]; if (!x) throw new Error('환율을 불러오지 못했어요');
+  return Math.round((1 / x) * 10000) / 10000;
+}
+function fxBar(r) {
+  const ks = Object.keys(r.fx || {}).filter((k) => curOf(k)), g = guessCur(r);
+  if (!ks.length && !g) return `<div class="fxbar"><button class="chip" data-act="fx" data-k="">${I('plus', 14)}외화 환율 추가</button></div>`;
+  return `<div class="fxbar"><span class="faint">환율</span>${ks.map((k) => `<button class="chip" data-act="fx" data-k="${k}">${fxLabel(k, r.fx[k])}</button>`).join('')}
+    ${!ks.length && g ? `<button class="chip on" data-act="fx" data-k="${g}">${I('plus', 14)}${curOf(g).n} 환율 설정</button>` : `<button class="chip" data-act="fx" data-k="">${I('plus', 14)}</button>`}</div>`;
+}
+function fxModal(r, k) {
+  k = k || guessCur(r) || 'JPY';
+  const c0 = curOf(k), cur = r.fx?.[k], used = (code) => r.expenses.filter((e) => e.cur === code).length;
+  const f = openModal({
+    title: '환율',
+    body: `<label class="field"><span>통화</span><select name="cur">${CURS.map((c) => `<option value="${c.k}" ${c.k === k ? 'selected' : ''}>${c.n} (${c.k} ${c.s})</option>`).join('')}</select></label>
+      <label class="field"><span class="fx-unit">${c0.s}${c0.u || 1}당 원화</span><input class="num" type="text" name="rate" inputmode="decimal" required value="${cur ? +(cur * (c0.u || 1)).toFixed(2) : ''}" placeholder="예: 920"></label>
+      <button type="button" class="btn sm" data-live style="align-self:flex-start">${I('refresh', 15)}지금 환율 불러오기</button>
+      <p class="faint" style="margin:0;font-size:13px">카드사·환전 환율과 조금 다를 수 있어요. 실제 환전한 환율을 적어두면 정산이 더 정확해요.</p>
+      <label class="row recalc" style="gap:8px;font-size:14px;${used(k) ? '' : 'display:none'}"><input type="checkbox" name="recalc" checked><span>이 통화로 적은 지출 <b class="n">${used(k)}</b>건도 새 환율로 다시 계산</span></label>
+      ${cur ? '<button type="button" class="btn sm ghost danger" data-del style="align-self:flex-start">이 통화 빼기</button>' : ''}`,
+    ok: '저장',
+    onOk(f) {
+      const code = f.cur.value, c = curOf(code), rate = +String(f.rate.value).replace(/[^\d.]/g, '') / (c.u || 1);
+      if (!rate) { toast('환율을 적어주세요'); return false; }
+      r.fx = { ...(r.fx || {}), [code]: Math.round(rate * 10000) / 10000 };
+      let n = 0;
+      if (f.recalc.checked) r.expenses.forEach((e) => { if (e.cur === code && e.orig) { e.rate = r.fx[code]; e.amount = Math.round(e.orig * e.rate); e.upd = now(); n++; } });
+      touch(r); render(); toast(`${fxLabel(code, r.fx[code])}${n ? ` · 지출 ${n}건 다시 계산` : ''}`);
+    },
+  });
+  const sync = () => { const c = curOf(f.cur.value); $('.fx-unit', f).textContent = `${c.s}${c.u || 1}당 원화`; const v = r.fx?.[c.k]; f.rate.value = v ? +(v * (c.u || 1)).toFixed(2) : ''; const u = used(c.k); $('.recalc', f).style.display = u ? '' : 'none'; $('.recalc .n', f).textContent = u; };
+  f.cur.addEventListener('change', sync);
+  $('[data-live]', f).addEventListener('click', async (ev) => {
+    const b = ev.currentTarget; b.disabled = true;
+    try { const c = curOf(f.cur.value), x = await liveRate(c.k); f.rate.value = +(x * (c.u || 1)).toFixed(2); toast(`오늘 환율: ${fxLabel(c.k, x)}`); } catch (e) { toast(e.message); }
+    b.disabled = false;
+  });
+  $('[data-del]', f)?.addEventListener('click', () => { const fx = { ...(r.fx || {}) }; delete fx[f.cur.value]; r.fx = fx; closeModal(); touch(r); render(); });
+}
 function expModal(r, e, pre = {}) {
   const isNew = !e;
-  e = e || { title: '', amount: '', cat: 'food', payer: meId(r), split: r.members.map((m) => m.id), day: pre.day ?? tripToday(r), pid: pre.pid || '' };
+  const curs = Object.keys(r.fx || {}).filter((k) => curOf(k));
+  e = e || { title: '', amount: '', cat: 'food', payer: meId(r), split: r.members.map((m) => m.id), day: pre.day ?? tripToday(r), pid: pre.pid || '', cur: tripToday(r) && curs[0] ? curs[0] : 'KRW' };
+  const ec = e.cur && e.cur !== 'KRW' ? e.cur : 'KRW', shown = ec === 'KRW' ? e.amount : e.orig;
   const curDay = e.day ?? expDay(r, e), planned = r.places.filter((p) => p.day).sort((a, b) => a.day - b.day || (a.order || 0) - (b.order || 0));
   const form = openModal({
     title: isNew ? '지출 기록' : '지출 수정',
-    body: `<label class="field"><span>금액</span><input class="amount-input num" type="text" name="amount" required inputmode="numeric" autocomplete="off" value="${e.amount ? Number(e.amount).toLocaleString('ko-KR') : ''}" placeholder="0원"></label>
+    body: `<label class="field"><span>금액</span><div class="row amt-row"><input class="amount-input num grow" type="text" name="amount" required inputmode="decimal" autocomplete="off" value="${shown ? Number(shown).toLocaleString('ko-KR', { maximumFractionDigits: 2 }) : ''}" placeholder="0원">${curs.length || ec !== 'KRW' ? `<select name="cur" class="cur-sel" aria-label="통화"><option value="KRW">원</option>${[...new Set([...curs, ...(ec !== 'KRW' ? [ec] : [])])].map((k) => `<option value="${k}" ${ec === k ? 'selected' : ''}>${curOf(k).s} ${curOf(k).n}</option>`).join('')}</select>` : `<button type="button" class="btn sm ghost" data-fx style="flex:none">외화?</button>`}</div></label>
       <div class="faint per" style="font-size:13px;margin-top:-8px"></div>
       <label class="field"><span>무엇에 썼나요</span><input type="text" name="title" required maxlength="60" value="${esc(e.title)}" placeholder="예: 흑돼지 저녁"></label>
       <div class="field"><span>분류</span><div class="chips" style="flex-wrap:wrap">${ECATS.map((c) => `<label class="chip ${e.cat === c.k ? 'on' : ''}"><input type="radio" name="cat" value="${c.k}" ${e.cat === c.k ? 'checked' : ''}><span class="dot" style="--c:${c.c}"></span>${c.n}</label>`).join('')}</div></div>
@@ -1369,10 +1426,12 @@ function expModal(r, e, pre = {}) {
     ok: isNew ? '기록하기' : '저장',
     onOk(f) {
       const fd = new FormData(f), split = fd.getAll('split');
-      const amount = +String(fd.get('amount')).replace(/[^\d]/g, '');
+      const cur = fd.get('cur') || 'KRW', raw = +String(fd.get('amount')).replace(/[^\d.]/g, '');
+      if (cur !== 'KRW' && !r.fx?.[cur]) { toast('먼저 환율을 정해주세요'); fxModal(r, cur); return false; }
+      const amount = cur === 'KRW' ? Math.round(raw) : Math.round(raw * r.fx[cur]);
       if (!amount) { toast('금액을 적어주세요'); return false; }
       if (!split.length) { toast('나눌 사람을 한 명 이상 골라주세요'); return false; }
-      const v = { title: fd.get('title').trim(), amount, cat: fd.get('cat'), payer: fd.get('payer'), split, day: +fd.get('day') || 0, pid: fd.get('pid') || '' };
+      const v = { title: fd.get('title').trim(), amount, cat: fd.get('cat'), payer: fd.get('payer'), split, day: +fd.get('day') || 0, pid: fd.get('pid') || '', cur, orig: cur === 'KRW' ? 0 : raw, rate: cur === 'KRW' ? 0 : r.fx[cur] };
       const files = fd.getAll('files').filter((x) => x.size).slice(0, 4);
       const done = (photos) => {
         v.photos = [...(e.photos || []), ...photos];
@@ -1386,10 +1445,12 @@ function expModal(r, e, pre = {}) {
   form.pid.addEventListener('change', () => { const o = form.pid.selectedOptions[0]; if (o?.dataset.d) form.day.value = o.dataset.d; });
   const amt = form.amount, per = $('.per', form);
   const upd = () => {
-    const n = +amt.value.replace(/[^\d]/g, ''); const k = $$('input[name=split]:checked', form).length;
-    per.textContent = n && k ? `${k}명이 나누면 1인 ${won(n / k)}` : '';
+    const c = form.cur?.value || 'KRW', raw = +amt.value.replace(/[^\d.]/g, ''), rate = c === 'KRW' ? 1 : r.fx?.[c];
+    const n = raw * (rate || 0), k = $$('input[name=split]:checked', form).length;
+    per.textContent = c !== 'KRW' && !rate ? '이 통화의 환율을 먼저 정해주세요' : n ? `${c !== 'KRW' ? `≈ ${won(n)} (${fxLabel(c, rate)})` : ''}${c !== 'KRW' && k ? ' · ' : ''}${k ? `${k}명이 나누면 1인 ${won(n / k)}` : ''}` : '';
   };
-  amt.addEventListener('input', () => { const n = amt.value.replace(/[^\d]/g, ''); amt.value = n ? (+n).toLocaleString('ko-KR') : ''; upd(); });
+  amt.addEventListener('input', () => { const t = amt.value.replace(/[^\d.]/g, ''); const [a, b] = t.split('.'); amt.value = a ? (+a).toLocaleString('ko-KR') + (b !== undefined ? '.' + b.slice(0, 2) : '') : ''; upd(); });
+  $('[data-fx]', form)?.addEventListener('click', () => { closeModal(); fxModal(r); });
   form.addEventListener('change', upd); upd();
   $('[data-del]', form)?.addEventListener('click', () => { closeModal(); removeUndo(r, 'expenses', e.id, `'${e.title}' 지출을`); });
 }
@@ -1546,7 +1607,7 @@ function loadXLSX() {
 }
 const XL = {
   places: ['일차', '순서', '시간', '이름', '분류', '주소', '메모', '하트', '다녀옴', '제안한 사람', 'ID'],
-  expenses: ['일차', '항목', '금액', '분류', '낸 사람', '나눈 사람', '장소', '1인 금액', 'ID'],
+  expenses: ['일차', '항목', '금액', '분류', '낸 사람', '나눈 사람', '장소', '1인 금액', 'ID', '현지 금액', '환율'],
   checklist: ['항목', '담당', '챙김', 'ID'],
 };
 async function exportExcel(r) {
@@ -1556,7 +1617,7 @@ async function exportExcel(r) {
   const places = r.places.slice().sort((a, b) => (a.day || 99) - (b.day || 99) || sortPlan(a, b))
     .map((p) => [p.day || '', p.day ? dayItems(r, p.day).indexOf(p) + 1 : '', p.time || '', p.name, cat(p.cat).n, p.addr || '', p.memo || '', p.hearts.length, p.visited ? 'O' : '', mn(p.by), p.id]);
   const exps = r.expenses.slice().sort((a, b) => expDay(r, a) - expDay(r, b) || a.at - b.at)
-    .map((e) => [expDay(r, e) || '공통', e.title, e.amount, ecat(e.cat).n, mn(e.payer), e.split.map(mn).join(', '), (e.pid && r.places.find((p) => p.id === e.pid)?.name) || '', Math.round(e.amount / Math.max(1, e.split.length)), e.id]);
+    .map((e) => [expDay(r, e) || '공통', e.title, e.amount, ecat(e.cat).n, mn(e.payer), e.split.map(mn).join(', '), (e.pid && r.places.find((p) => p.id === e.pid)?.name) || '', Math.round(e.amount / Math.max(1, e.split.length)), e.id, e.cur && e.cur !== 'KRW' && curOf(e.cur) ? fmtCur(e.cur, e.orig) : '', e.rate || '']);
   const { tx, bal } = settle(r);
   const info = [['여행 이름', r.name], ['여행지', r.dest || '미정'], ['날짜', range(r)], ['기간', nights(r)], ['일행', r.members.map((m) => m.name).join(', ')], [],
     ['총 지출', r.expenses.reduce((s, e) => s + e.amount, 0)], [], ['정산', '', ''], ['보내는 사람', '받는 사람', '금액'], ...tx.map((t) => [mn(t.from), mn(t.to), t.amt]), [],
@@ -1566,7 +1627,7 @@ async function exportExcel(r) {
   const wi = X.utils.aoa_to_sheet(info); wi['!cols'] = [{ wch: 14 }, { wch: 28 }, { wch: 18 }];
   X.utils.book_append_sheet(wb, wi, '여행 정보');
   X.utils.book_append_sheet(wb, sheet(XL.places, places, [5, 5, 7, 22, 6, 30, 30, 5, 6, 10, 12]), '장소·일정');
-  X.utils.book_append_sheet(wb, sheet(XL.expenses, exps, [6, 20, 10, 6, 8, 20, 16, 10, 12]), '지출');
+  X.utils.book_append_sheet(wb, sheet(XL.expenses, exps, [6, 20, 10, 6, 8, 20, 16, 10, 12, 12, 8]), '지출');
   X.utils.book_append_sheet(wb, sheet(XL.checklist, r.checklist.map((c) => [c.text, mn(c.who) || '공용', c.done ? 'O' : '', c.id]), [24, 8, 6, 12]), '준비물');
   X.writeFile(wb, `모아여행-${r.name}.xlsx`);
   toast('엑셀 파일을 받았어요');
@@ -1936,6 +1997,7 @@ document.addEventListener('click', (ev) => {
       if (ui.planDay) $(`#day-${ui.planDay}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     },
     'plan-map': () => { ui.planMap = !ui.planMap; render(); },
+    fx: () => fxModal(r, el.dataset.k),
     'plan-view': () => { ui.planView = el.dataset.k; try { localStorage.setItem('moa.planView', ui.planView); } catch (e) { /* noop */ } render(); },
     'sheet-del': () => { const p = P(el.dataset.id); if (p) removeUndo(r, 'places', p.id, `'${p.name}'을(를)`); },
     'xl-out': () => exportExcel(r).catch((e) => toast(e.message)),

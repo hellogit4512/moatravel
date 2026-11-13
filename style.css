@@ -646,3 +646,9 @@ h3{margin:0;font-size:16px;font-weight:700;letter-spacing:-.015em}
 th:hover .col-rs::after,.col-rs.on::after{background:var(--accent)}
 @media (hover:none){.col-rs{width:22px;right:-11px}.col-rs::after{left:10px;background:var(--line-2)}}
 .sheet select{padding:0 16px 0 8px;background-position:right 3px center}
+
+/* 환율 */
+.fxbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:10px 2px 0;font-size:13px}
+.fxbar .chip{height:30px;font-variant-numeric:tabular-nums}
+.amt-row{gap:8px;align-items:stretch}
+.cur-sel{width:auto;flex:none;font-weight:700}
