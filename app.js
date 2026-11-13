@@ -1188,7 +1188,7 @@ function planSheet(r) {
   let prevDay = -1;
   const body = rows.map((p) => {
     const d = p.day || 0, idx = d ? dayItems(r, d).indexOf(p) + 1 : '', col = d ? COLORS[(d - 1) % COLORS.length] : 'var(--line-2)';
-    const sep = d !== prevDay ? `<tr class="sh-day"><td colspan="11"><span style="color:${col}">${d ? `${d}일차` : '날짜 미정'}</span>${d && !undated(r) ? `<span class="faint">${dayLabel(r, d)}</span>` : ''}${d && daySpent(r, d) ? `<span class="faint">· ${won(daySpent(r, d))}</span>` : ''}</td></tr>` : '';
+    const sep = d !== prevDay ? `<tr class="sh-day"><td colspan="12"><span style="color:${col}">${d ? `${d}일차` : '날짜 미정'}</span>${d && !undated(r) ? `<span class="faint">${dayLabel(r, d)}</span>` : ''}${d && daySpent(r, d) ? `<span class="faint">· ${won(daySpent(r, d))}</span>` : ''}</td></tr>` : '';
     prevDay = d;
     const sp = placeSpent(r, p.id);
     return `${sep}<tr data-pid="${p.id}" class="${p.visited ? 'done' : ''} ${ui.sel === p.id ? 'sel' : ''}" style="--c:${col}">
@@ -1200,7 +1200,7 @@ function planSheet(r) {
       ${cell(p, 'addr', inp(p, 'addr', p.addr, 'maxlength="120"'))}
       ${cell(p, 'memo', inp(p, 'memo', p.memo, 'maxlength="300"'))}
       <td class="c-ro num">${p.hearts.length || ''}</td>
-      ${spentCell(r, p)}
+      ${curCell(r, p)}${spentCell(r, p)}
       <td class="c-chk"><input type="checkbox" data-cell data-id="${p.id}" data-f="visited" ${p.visited ? 'checked' : ''} aria-label="다녀옴"></td>
       <td class="c-x"><button class="btn ghost icon sm" data-act="sheet-del" data-id="${p.id}" aria-label="${esc(p.name)} 삭제" tabindex="-1">${I('x', 14)}</button></td>
     </tr>`;
@@ -1212,7 +1212,7 @@ function planSheet(r) {
     <colgroup>${SHEET_COLS.map((c) => `<col data-col="${c.k}" style="width:${colW(c.k)}px">`).join('')}</colgroup>
     <thead><tr>${SHEET_COLS.map((c) => `<th class="c-${c.cls || c.k}">${c.n}${c.fix ? '' : `<span class="col-rs" data-rs="${c.k}" title="끌어서 너비 조절 · 두 번 누르면 기본"></span>`}</th>`).join('')}</tr></thead>
     <tbody>${body}</tbody>
-    <tfoot><tr><td colspan="11"><form class="sheet-add" data-form="sheet-add"><select name="d" aria-label="새 장소 일차">${dayOpts(ui.sheetDay || 0)}</select><input name="t" placeholder="＋ 장소 이름을 쓰고 Enter (위치는 자동으로 찾아요)" maxlength="60" autocomplete="off" aria-label="새 장소 이름"></form></td></tr></tfoot>
+    <tfoot><tr><td colspan="12"><form class="sheet-add" data-form="sheet-add"><select name="d" aria-label="새 장소 일차">${dayOpts(ui.sheetDay || 0)}</select><input name="t" placeholder="＋ 장소 이름을 쓰고 Enter (위치는 자동으로 찾아요)" maxlength="60" autocomplete="off" aria-label="새 장소 이름"></form></td></tr></tfoot>
   </table></div>
   <p class="faint sheet-help">Enter: 아래 칸 · ↑↓: 위아래 줄 · Tab: 옆 칸 · 제목 칸 경계를 끌면 너비가 바뀌어요</p>
   <div class="plan-pack" id="pack">${packTab(r)}</div>`;
@@ -1221,7 +1221,7 @@ function planSheet(r) {
 const SHEET_COLS = [
   { k: 'day', n: '일차', w: 88 }, { k: 'order', n: '순서', w: 48 }, { k: 'time', n: '시간', w: 66 }, { k: 'name', n: '장소', w: 170 },
   { k: 'cat', n: '분류', w: 60 }, { k: 'addr', n: '주소', w: 210 }, { k: 'memo', n: '메모', w: 360 },
-  { k: 'heart', n: '♥', w: 40, cls: 'ro' }, { k: 'spent', n: '지출', w: 96 }, { k: 'chk', n: '✓', w: 38, fix: true }, { k: 'x', n: '', w: 36, fix: true },
+  { k: 'heart', n: '♥', w: 40, cls: 'ro' }, { k: 'cur', n: '통화', w: 62 }, { k: 'spent', n: '지출', w: 96 }, { k: 'chk', n: '✓', w: 38, fix: true }, { k: 'x', n: '', w: 36, fix: true },
 ];
 const EXP_COLS = [
   { k: 'e_day', n: '일차', w: 88 }, { k: 'e_title', n: '항목', w: 170 }, { k: 'e_cur', n: '통화', w: 64 }, { k: 'e_amt', n: '금액', w: 100 },
@@ -1255,14 +1255,33 @@ const defCur = (r) => { const ks = Object.keys(r.fx || {}).filter((k) => curOf(k
 function spentCell(r, p) {
   const lx = r.expenses.filter((e) => e.pid === p.id);
   if (lx.length > 1) return `<td class="c-spent"><button class="sh-multi num" data-act="place-exps" data-id="${p.id}" title="지출 ${lx.length}건">${won(placeSpent(r, p.id)).replace('원', '')}<small>${lx.length}건</small></button></td>`;
-  const e = lx[0], fc = e && e.cur && e.cur !== 'KRW' && curOf(e.cur) ? e.cur : null, dc = defCur(r);
+  const e = lx[0], fc = e && e.cur && e.cur !== 'KRW' && curOf(e.cur) ? e.cur : null, dc = placeCur(r, p);
   const val = !e ? '' : fc ? fmtCur(fc, e.orig) : e.amount.toLocaleString('ko-KR');
   return `<td class="c-spent" title="${e ? `${esc(e.title)} · ${won(e.amount)}` : '여기서 쓴 돈을 적으면 정산에 들어가요'}"><input data-cell data-id="${p.id}" data-f="spent" class="num" inputmode="decimal" value="${esc(val)}" placeholder="${dc === 'KRW' ? '+ 원' : `+ ${curOf(dc).s}`}" aria-label="${esc(p.name)} 지출"></td>`;
+}
+// 통화 칸: 지출이 있으면 그 지출의 통화, 없으면 이 장소에서 쓸 통화(p.cur)를 바꿔요
+const placeCur = (r, p) => { const e = r.expenses.find((x) => x.pid === p.id); return e ? (e.cur && e.cur !== 'KRW' && curOf(e.cur) ? e.cur : 'KRW') : p.cur && (p.cur === 'KRW' || curOf(p.cur)) ? p.cur : defCur(r); };
+function curCell(r, p) {
+  const lx = r.expenses.filter((e) => e.pid === p.id);
+  if (lx.length > 1) return `<td class="c-cur"><span class="faint" style="padding:0 8px">–</span></td>`;
+  const cur = placeCur(r, p), ks = [...new Set(['KRW', ...Object.keys(r.fx || {}).filter((k) => curOf(k)), guessCur(r), cur].filter(Boolean))];
+  return `<td class="c-cur"><select data-cell data-id="${p.id}" data-f="cur" aria-label="${esc(p.name)} 통화">${ks.map((k) => `<option value="${k}" ${k === cur ? 'selected' : ''}>${k === 'KRW' ? '원' : curOf(k).s}${k !== 'KRW' && !r.fx?.[k] ? ' (환율 없음)' : ''}</option>`).join('')}<option value="+">다른 통화…</option></select></td>`;
+}
+function placeCurEdit(r, p, v) {
+  if (v === '+') { render(); return fxModal(r, ''); }
+  if (v !== 'KRW' && !r.fx?.[v]) { render(); toast(`${curOf(v).n} 환율을 먼저 정해주세요`); return fxModal(r, v); }
+  const e = r.expenses.find((x) => x.pid === p.id);
+  if (e) {
+    const shown = e.cur && e.cur !== 'KRW' ? +e.orig : e.amount;
+    Object.assign(e, v === 'KRW' ? { cur: 'KRW', orig: 0, rate: 0, amount: Math.round(shown) } : { cur: v, orig: shown, rate: r.fx[v], amount: Math.round(shown * r.fx[v]) });
+    touch(r, e); toast(`${v === 'KRW' ? `${won(shown)}` : `${fmtCur(v, shown)} = ${won(e.amount)}`}로 바꿨어요`);
+  } else { p.cur = v; touch(r, p); }
+  render();
 }
 function placeSpentEdit(r, p, v) {
   const n = +String(v).replace(/[^\d.]/g, ''), e = r.expenses.find((x) => x.pid === p.id);
   if (!n) { if (e) removeUndo(r, 'expenses', e.id, `'${e.title}' 지출을`); else render(); return; }
-  const cur = e ? (e.cur && e.cur !== 'KRW' && curOf(e.cur) ? e.cur : 'KRW') : defCur(r);
+  const cur = e ? (e.cur && e.cur !== 'KRW' && curOf(e.cur) ? e.cur : 'KRW') : placeCur(r, p);
   if (cur !== 'KRW' && !r.fx?.[cur]) { toast('먼저 정산 탭에서 환율을 정해주세요'); return render(); }
   const money = cur === 'KRW' ? { cur: 'KRW', orig: 0, rate: 0, amount: Math.round(n) } : { cur, orig: n, rate: r.fx[cur], amount: Math.round(n * r.fx[cur]) };
   if (e) { Object.assign(e, money); touch(r, e); }
@@ -1287,6 +1306,7 @@ function sheetEdit(el) {
   else if (f === 'name') { if (!v) { el.value = p.name; return toast('장소 이름은 비울 수 없어요'); } p.name = v; }
   else if (f === 'visited') { p.visited = v; el.closest('tr')?.classList.toggle('done', v); }
   else if (f === 'spent') return placeSpentEdit(r, p, v);
+  else if (f === 'cur') return placeCurEdit(r, p, v);
   else p[f] = v;
   touch(r, p);
 }
