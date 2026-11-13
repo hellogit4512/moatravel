@@ -79,7 +79,7 @@ const I = (n, s = 18, sw = 1.7) => `<svg class="i" width="${s}" height="${s}" vi
 
 // ───────── 상태 ─────────
 let S = load();
-const ui = { planDay: 0, planMap: true, filter: 'all', sort: 'new', view: 'map', openCmt: {}, q: '' };
+const ui = { planView: (() => { try { return localStorage.getItem('moa.planView') || 'cards'; } catch (e) { return 'cards'; } })(), planDay: 0, planMap: true, filter: 'all', sort: 'new', view: 'map', openCmt: {}, q: '' };
 const failed = {};
 let mapCtl = null;
 
@@ -714,7 +714,8 @@ function render() {
   const r = rt.page === 'room' ? S.rooms[rt.id] : null;
   if (r) { r.docs ||= []; S.seen ||= {}; if (S.seen[r.id] == null) S.seen[r.id] = r.messages.at(-1)?.at || 0; }
   document.title = r ? `${rt.tab !== 'chat' && unread(r) ? `(${unread(r)}) ` : ''}${r.name} · 모아여행` : '모아여행 · 함께 모아 만드는 우리 여행';
-  const y = scrollY;
+  const y = scrollY, ae = document.activeElement, keep = ae?.matches?.('.sheet-add input,.sheet-add select') ? `.sheet-add [name="${ae.name}"]` : ae?.dataset?.cell !== undefined ? `[data-cell][data-id="${ae.dataset.id}"][data-f="${ae.dataset.f}"]` : null;
+  const sx = $('.sheet-wrap')?.scrollLeft;
   $('#app').innerHTML = `<div class="shell ${r ? 'is-room' : 'is-home'}">${side(rt, r)}<div class="content">${topbar(r)}<main class="main" id="main">${r ? roomPage(r, rt.tab) : home()}</main></div>${r ? bnav(rt.tab, r) : ''}</div>`;
   document.body.classList.toggle('is-home', !r);
   if (S.mapH) document.documentElement.style.setProperty('--map-h', S.mapH + 'px');
@@ -729,6 +730,8 @@ function render() {
   if (r && rt.tab === 'chat') { const el = $('.msgs'); if (el) el.scrollTop = el.scrollHeight; markSeen(r); }
   if (r) hydratePhotos();
   scrollTo(0, y);
+  if (sx) { const w = $('.sheet-wrap'); if (w) w.scrollLeft = sx; }
+  if (keep) $(keep)?.focus({ preventScroll: true });
   if (r && !meId(r)) setTimeout(() => pickMe(r), 60);
 }
 
@@ -1112,11 +1115,93 @@ function todayTab(r) {
   ${docs.length ? `<div class="docs today-docs">${docs.map((x) => `<button class="doc" data-act="open-doc" data-id="${x.id}"><div class="doc-thumb">${x.photos?.[0] ? ph(x.photos[0], esc(x.title), false) : `<span class="ill">${I('ticket', 24, 1.4)}</span>`}</div><div class="doc-body"><b>${esc(x.title)}</b></div></button>`).join('')}</div>` : ''}
   </div>`;
 }
+
+// ───── 일정 표 (스프레드시트처럼 바로 고치기) ─────
+function planSheet(r) {
+  const n = dayCount(r), lock = !!r.confirmed, me = meId(r);
+  const rows = r.places.slice().sort((a, b) => (a.day || 99) - (b.day || 99) || sortPlan(a, b));
+  const dayOpts = (v, none = '미정') => `<option value="0">${none}</option>` + Array.from({ length: n }, (_, i) => `<option value="${i + 1}" ${v === i + 1 ? 'selected' : ''}>${i + 1}일차</option>`).join('');
+  const cell = (p, f, html) => `<td class="c-${f}">${html}</td>`;
+  const inp = (p, f, v, extra = '') => `<input data-cell data-id="${p.id}" data-f="${f}" value="${esc(v ?? '')}" ${extra} aria-label="${esc(p.name)} ${f}">`;
+  let prevDay = -1;
+  const body = rows.map((p) => {
+    const d = p.day || 0, idx = d ? dayItems(r, d).indexOf(p) + 1 : '', col = d ? COLORS[(d - 1) % COLORS.length] : 'var(--line-2)';
+    const sep = d !== prevDay ? `<tr class="sh-day"><td colspan="11"><span style="color:${col}">${d ? `${d}일차` : '날짜 미정'}</span>${d && !undated(r) ? `<span class="faint">${dayLabel(r, d)}</span>` : ''}${d && daySpent(r, d) ? `<span class="faint">· ${won(daySpent(r, d))}</span>` : ''}</td></tr>` : '';
+    prevDay = d;
+    const sp = placeSpent(r, p.id);
+    return `${sep}<tr data-pid="${p.id}" class="${p.visited ? 'done' : ''} ${ui.sel === p.id ? 'sel' : ''}" style="--c:${col}">
+      ${cell(p, 'day', `<select data-cell data-id="${p.id}" data-f="day" ${lock ? 'disabled' : ''} aria-label="일차">${dayOpts(p.day || 0)}</select>`)}
+      ${cell(p, 'order', d ? inp(p, 'order', idx, `inputmode="numeric" ${lock ? 'disabled' : ''}`) : '<span class="faint">–</span>')}
+      ${cell(p, 'time', inp(p, 'time', p.time, 'placeholder="00:00" inputmode="numeric" maxlength="5"'))}
+      ${cell(p, 'name', inp(p, 'name', p.name, 'maxlength="60"'))}
+      ${cell(p, 'cat', `<select data-cell data-id="${p.id}" data-f="cat" aria-label="분류">${CATS.map((c) => `<option value="${c.k}" ${p.cat === c.k ? 'selected' : ''}>${c.n}</option>`).join('')}</select>`)}
+      ${cell(p, 'addr', inp(p, 'addr', p.addr, 'maxlength="120"'))}
+      ${cell(p, 'memo', inp(p, 'memo', p.memo, 'maxlength="300"'))}
+      <td class="c-ro num">${p.hearts.length || ''}</td>
+      <td class="c-ro num">${sp ? won(sp) : ''}</td>
+      <td class="c-chk"><input type="checkbox" data-cell data-id="${p.id}" data-f="visited" ${p.visited ? 'checked' : ''} aria-label="다녀옴"></td>
+      <td class="c-x"><button class="btn ghost icon sm" data-act="sheet-del" data-id="${p.id}" aria-label="${esc(p.name)} 삭제" tabindex="-1">${I('x', 14)}</button></td>
+    </tr>`;
+  }).join('');
+  return `<div class="sec"><div><h2>우리 일정</h2><p>엑셀처럼 칸을 눌러 바로 고쳐요. 고친 내용은 일행 화면에도 바로 반영돼요.</p></div>
+    <div class="acts">${planViewSeg()}<button class="btn ghost" data-act="xl-out" title="엑셀로 받기">${I('down2', 16)}엑셀</button></div></div>
+  ${lock ? `<div class="locked">${I('check', 18, 2.2)}<span><b>일정 확정</b> · 날짜와 순서는 잠겨 있어요</span><span class="sp"></span><button class="btn sm" data-act="reopen-plan">다시 열기</button></div>` : ''}
+  <div class="sheet-wrap card"><table class="sheet">
+    <thead><tr><th class="c-day">일차</th><th class="c-order">순서</th><th class="c-time">시간</th><th class="c-name">장소</th><th class="c-cat">분류</th><th class="c-addr">주소</th><th class="c-memo">메모</th><th class="c-ro">♥</th><th class="c-ro">지출</th><th class="c-chk">✓</th><th class="c-x"></th></tr></thead>
+    <tbody>${body}</tbody>
+    <tfoot><tr><td colspan="11"><form class="sheet-add" data-form="sheet-add"><select name="d" aria-label="새 장소 일차">${dayOpts(ui.sheetDay || 0)}</select><input name="t" placeholder="＋ 장소 이름을 쓰고 Enter (위치는 자동으로 찾아요)" maxlength="60" autocomplete="off" aria-label="새 장소 이름"></form></td></tr></tfoot>
+  </table></div>
+  <p class="faint sheet-help">Enter: 아래 칸 · ↑↓: 위아래 줄 · Tab: 옆 칸 · 순서 숫자를 바꾸면 그날 순서가 바뀌어요</p>
+  <div class="plan-pack" id="pack">${packTab(r)}</div>`;
+}
+const planViewSeg = () => `<div class="seg"><button class="${ui.planView !== 'table' ? 'on' : ''}" data-act="plan-view" data-k="cards" aria-label="카드로 보기" title="카드로 보기">${I('grid', 16)}</button><button class="${ui.planView === 'table' ? 'on' : ''}" data-act="plan-view" data-k="table" aria-label="표로 보기" title="표로 보기">${I('list', 16)}표</button></div>`;
+function sheetEdit(el) {
+  const r = room(); if (!r) return;
+  const p = r.places.find((x) => x.id === el.dataset.id); if (!p) return;
+  const f = el.dataset.f, v = el.type === 'checkbox' ? el.checked : el.value.trim();
+  const refocus = () => { render(); $(`[data-cell][data-id="${p.id}"][data-f="${f}"]`)?.focus(); };
+  if (f === 'day') { placeInDay(r, p, +v || 0); return refocus(); }
+  if (f === 'order') { const k = Math.max(1, Math.round(+v || 1)); placeInDay(r, p, p.day, k - 1); return refocus(); }
+  if (f === 'time') { const m = v.replace(/[^\d]/g, ''); const t = v ? (m.length <= 2 ? `${m.padStart(2, '0')}:00` : `${m.slice(0, -2).padStart(2, '0')}:${m.slice(-2)}`) : ''; if (t && !/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) { el.value = p.time || ''; return toast('시간은 13:30처럼 적어주세요'); } p.time = t; el.value = t; }
+  else if (f === 'name') { if (!v) { el.value = p.name; return toast('장소 이름은 비울 수 없어요'); } p.name = v; }
+  else if (f === 'visited') { p.visited = v; el.closest('tr')?.classList.toggle('done', v); }
+  else p[f] = v;
+  touch(r, p);
+}
+document.addEventListener('change', (ev) => { if (ev.target.matches?.('[data-cell]')) sheetEdit(ev.target); });
+document.addEventListener('keydown', (ev) => {
+  const el = ev.target; if (!el.matches?.('input[data-cell]:not([type=checkbox])')) return;
+  const dir = ev.key === 'Enter' || ev.key === 'ArrowDown' ? 1 : ev.key === 'ArrowUp' ? -1 : 0;
+  if (!dir) { if (ev.key === 'Escape') { el.blur(); } return; }
+  ev.preventDefault();
+  if (el.value !== el.defaultValue) { el.defaultValue = el.value; sheetEdit(el); }
+  const td = el.closest('td'), tr = td?.closest('tr'); if (!tr) return;
+  const ci = [...tr.children].indexOf(td);
+  let t = dir > 0 ? tr.nextElementSibling : tr.previousElementSibling;
+  while (t && !t.dataset.pid) t = dir > 0 ? t.nextElementSibling : t.previousElementSibling;
+  el.blur();
+  const go2 = () => { const target = t ? t.children[ci]?.querySelector('input,select') : (dir > 0 ? $('.sheet-add input') : null); target?.focus(); target?.select?.(); };
+  // 값이 바뀌어 화면이 다시 그려졌으면 같은 칸 기준으로 다시 찾기
+  setTimeout(() => { if (!document.contains(tr)) { const f = el.dataset.f; const rows = $$('.sheet tbody tr[data-pid]'); const i = rows.findIndex((x) => x.dataset.pid === el.dataset.id); const nx = rows[i + dir]; (nx ? nx.querySelector(`[data-f="${f}"]`) : $('.sheet-add input'))?.focus(); } else go2(); }, 0);
+});
+async function sheetAdd(r, f) {
+  const name = f.t.value.trim(), d = +f.d.value || 0; if (!name) return;
+  ui.sheetDay = d;
+  const me = meId(r), p = { id: uid(), name: name.slice(0, 60), cat: 'etc', addr: '', memo: '', by: me, hearts: [me], comments: [], day: null, order: 0, time: '', at: now(), upd: now() };
+  r.places.push(p); placeInDay(r, p, d); sysMsg(r, `${member(r, me).name}님이 '${p.name}'을(를) 모았어요`);
+  render(); $('.sheet-add input')?.focus();
+  try {
+    const res = await searchPlaces(`${r.dest || ''} ${name}`.trim(), r), hit = res?.items?.[0];
+    if (hit?.lat) { Object.assign(p, { lat: hit.lat, lng: hit.lng, addr: hit.addr || '', cat: hit.cat || p.cat, kid: hit.kid, gid: hit.gid }); touch(r, p); safeRender(); }
+  } catch (e) { /* 위치 없이 둬요 */ }
+}
+
 function planTab(r) {
+  if (ui.planView === 'table') return planSheet(r);
   const days = dayCount(r), pending = dayItems(r, 0).sort((a, b) => b.hearts.length - a.hearts.length);
   const lock = !!r.confirmed, planned = r.places.filter((p) => p.day), visited = planned.filter((p) => p.visited).length;
   return `<div class="sec"><div><h2>우리 일정</h2><p>${lock ? '확정된 일정이에요. 다녀온 곳은 체크해 보세요.' : '모아둔 곳을 날짜에 끌어다 놓고, 순서와 시간을 맞춰요.'}</p></div>
-    <div class="acts"><button class="btn ghost" data-act="xl-out" title="엑셀로 받기">${I('down2', 16)}엑셀</button><button class="btn" data-act="copy-plan">${I('copy', 16)}단체톡용 복사</button>${lock ? '' : `<button class="btn pri" data-act="confirm-plan" ${planned.length ? '' : 'disabled style="opacity:.5"'}>${I('check', 16, 2.2)}일정 확정</button>`}</div></div>
+    <div class="acts">${planViewSeg()}<button class="btn ghost" data-act="xl-out" title="엑셀로 받기">${I('down2', 16)}엑셀</button><button class="btn" data-act="copy-plan">${I('copy', 16)}단체톡용 복사</button>${lock ? '' : `<button class="btn pri" data-act="confirm-plan" ${planned.length ? '' : 'disabled style="opacity:.5"'}>${I('check', 16, 2.2)}일정 확정</button>`}</div></div>
   <div class="places-layout ${isWide() ? 'split' : 'stack'} plan-layout"><div class="plan-main">
   ${lock ? `<div class="locked">${I('check', 18, 2.2)}<span><b>일정 확정</b> · ${esc(member(r, r.confirmed.by).name)}님이 ${timeAgo(r.confirmed.at)} 확정했어요</span><span class="faint">다녀온 곳 ${visited}/${planned.length}</span><span class="sp"></span><button class="btn sm" data-act="reopen-plan">다시 열기</button></div>` : ''}
   <div class="days">
@@ -1824,6 +1909,8 @@ document.addEventListener('click', (ev) => {
       if (ui.planDay) $(`#day-${ui.planDay}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     },
     'plan-map': () => { ui.planMap = !ui.planMap; render(); },
+    'plan-view': () => { ui.planView = el.dataset.k; try { localStorage.setItem('moa.planView', ui.planView); } catch (e) { /* noop */ } render(); },
+    'sheet-del': () => { const p = P(el.dataset.id); if (p) removeUndo(r, 'places', p.id, `'${p.name}'을(를)`); },
     'xl-out': () => exportExcel(r).catch((e) => toast(e.message)),
     'xl-in': () => importExcel(r),
     install: () => { installEvt?.prompt(); installEvt?.userChoice.finally(() => { installEvt = null; render(); }); },
@@ -1913,6 +2000,7 @@ document.addEventListener('submit', (ev) => {
     return;
   }
   if (kind === 'destopt' && t) { const o = { id: uid(), name: t.slice(0, 30), by: meId(r), votes: [meId(r)], at: now() }; (r.destOpts ||= []).push(o); sysMsg(r, `${member(r, meId(r)).name}님이 여행지 후보 '${o.name}'을(를) 올렸어요`); touch(r, o); render(); return; }
+  if (kind === 'sheet-add' && t) { sheetAdd(r, f); return; }
   if (kind === 'chat' && t) { r.messages.push({ id: uid(), by: meId(r), text: t, at: now(), upd: now() }); touch(r); render(); $('.composer input')?.focus(); }
   if (kind === 'cmt' && t) { const p = r.places.find((x) => x.id === f.dataset.id); p.comments.push({ id: uid(), by: meId(r), text: t, at: now() }); touch(r, p); render(); $(`[data-form=cmt][data-id="${p.id}"] input`)?.focus({ preventScroll: true }); }
   if (kind === 'pack' && t) { const c = { id: uid(), text: t, who: f.who.value || null, done: false }; r.checklist.push(c); touch(r, c); render(); $('[data-form=pack] input')?.focus(); }

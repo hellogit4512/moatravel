@@ -599,3 +599,37 @@ h3{margin:0;font-size:16px;font-weight:700;letter-spacing:-.015em}
 .places-layout.stack .mapblock{padding-bottom:0}
 .places-layout.stack .place{scroll-margin-top:calc(var(--top) + var(--map-h, clamp(200px,32dvh,340px)) + 44px)}
 .plan-layout.stack .day{scroll-margin-top:calc(var(--top) + var(--map-h, clamp(200px,32dvh,340px)) + 90px)}
+
+/* 일정 표 (스프레드시트) */
+.sheet-wrap{padding:0;overflow:auto;max-height:calc(100dvh - 200px);-webkit-overflow-scrolling:touch}
+.sheet{width:100%;min-width:980px;border-collapse:separate;border-spacing:0;font-size:14px}
+.sheet th{position:sticky;top:0;z-index:2;background:var(--sunk);color:var(--muted);font-size:12px;font-weight:700;text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.sheet td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:0;height:40px;background:var(--surface)}
+.sheet td:last-child,.sheet th:last-child{border-right:0}
+.sheet tbody tr[data-pid] td:first-child{box-shadow:inset 3px 0 0 var(--c)}
+.sheet .c-day,.sheet .c-name{position:sticky;z-index:1}
+.sheet .c-day{left:0;width:90px}
+.sheet .c-name{left:90px;min-width:170px;box-shadow:2px 0 0 var(--line)}
+.sheet th.c-day,.sheet th.c-name{z-index:3}
+.sheet .c-order{width:52px}.sheet .c-time{width:70px}.sheet .c-cat{width:76px}.sheet .c-addr{min-width:200px}.sheet .c-memo{min-width:220px}
+.sheet .c-ro{width:84px;text-align:right;padding:0 8px;color:var(--muted);font-size:13px}
+.sheet .c-chk{width:40px;text-align:center}.sheet .c-x{width:40px;text-align:center}
+.sheet input:not([type=checkbox]),.sheet select{width:100%;height:39px;border:0;border-radius:0;background:transparent;padding:0 8px;font:inherit;color:inherit;box-shadow:none;min-width:0}
+.sheet select{background-position:right 4px center;padding-right:18px}
+.sheet input:not([type=checkbox]):focus,.sheet select:focus{outline:2px solid var(--accent);outline-offset:-2px;background:var(--surface);position:relative;z-index:4}
+.sheet input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
+.sheet tbody tr[data-pid]:hover td{background:color-mix(in srgb,var(--accent) 4%,var(--surface))}
+.sheet tr.done .c-name input{color:var(--faint);text-decoration:line-through}
+.sheet tr.sel td{background:var(--accent-soft)}
+.sheet .sh-day td{height:auto;padding:12px 10px 6px;background:var(--bg);font-weight:800;font-size:13px;border-right:0;position:sticky;left:0}
+.sheet .sh-day td span{margin-right:8px}
+.sheet .sh-day .faint{font-weight:500}
+.sheet tfoot td{border-bottom:0;background:var(--bg)}
+.sheet-add{display:flex;gap:0;position:sticky;left:0;max-width:640px}
+.sheet-add select{width:88px;flex:none;border-right:1px solid var(--line)}
+.sheet-add input{flex:1}
+.sheet-help{font-size:12px;margin:8px 4px 0}
+.sheet .c-x .btn{opacity:.35}.sheet tr:hover .c-x .btn{opacity:1}
+@media (hover:none){.sheet .c-x .btn{opacity:.7}.sheet-help{display:none}}
+@media (max-width:760px){.sheet{font-size:14px;min-width:900px}.sheet-wrap{max-height:none;margin:0 -16px;border-radius:0;border-left:0;border-right:0}.sheet .c-day{width:84px}.sheet .c-name{left:84px;min-width:140px}}
+.sheet .c-day{min-width:88px}.sheet .c-order{min-width:54px}.sheet .c-time{min-width:74px}.sheet .c-cat{min-width:82px}.sheet .c-ro{min-width:72px}@media (max-width:760px){.sheet .c-day{min-width:84px}.sheet .c-name{left:84px}}
