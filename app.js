@@ -1082,6 +1082,7 @@ function wxFor(r, d) {
 }
 function wxChip(r, d) {
   const w = wxFor(r, d); if (!w) return '';
+  if (w.clim) return `<span class="wx clim" title="예년 날씨 · 최근 ${w.yrs}년 같은 날 평균 최고 ${Math.round(w.hi)}° / 최저 ${Math.round(w.lo)}°${w.rain ? ` · ${w.yrs}년 중 ${w.rain}번 비` : ''} · 출발 16일 전부터 실제 예보로 바뀌어요">예년 ${Math.round(w.hi)}°<span class="faint">/${Math.round(w.lo)}°</span>${w.rain >= 2 ? '<span class="wx-p">☔</span>' : ''}</span>`;
   return `<span class="wx" title="${wxName(w.c)} · 최고 ${Math.round(w.hi)}° / 최저 ${Math.round(w.lo)}°${w.p != null ? ` · 비 올 확률 ${w.p}%` : ''}">${wxIcon(w.c)} ${Math.round(w.hi)}°<span class="faint">/${Math.round(w.lo)}°</span>${w.p >= 40 ? `<span class="wx-p">☔${w.p}%</span>` : ''}</span>`;
 }
 const wxBusy = {};
@@ -1089,19 +1090,35 @@ async function loadWeather(r) {
   if (!r || r.demo || undated(r) || wxBusy[r.id]) return;
   const today = new Date(isoDate(new Date())), s0 = new Date(r.start), e0 = new Date(r.end);
   const ahead = Math.round((s0 - today) / 864e5);
-  if (ahead > 15 || e0 < today) return;
-  const w = WX[r.id];
-  if (w && Date.now() - w.at < 3 * 3600e3 && w.key === `${r.start}${r.end}${r.dest}`) return;
+  if (e0 < today || ahead > 400) return;
+  const mode = ahead > 15 ? 'clim' : 'fc', key = `${mode}${r.start}${r.end}${r.dest}`, w = WX[r.id];
+  if (w && w.key === key && Date.now() - w.at < (mode === 'fc' ? 3 : 24) * 3600e3) return;
   wxBusy[r.id] = true;
   try {
     let c = center(r);
-    if (!c && r.dest) { try { const hit = (await searchPlaces(r.dest, r))?.items?.[0]; if (hit?.lat) c = [hit.lat, hit.lng]; } catch (e) { /* 다음 방법 */ } }
+    // 여행지 이름은 도시 단위로 찾아요 (장소 검색은 같은 이름의 가게가 잡힐 수 있어요)
+    if (!c && r.dest) { try { const x = (await (await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${enc(r.dest)}`)).json())?.[0]; if (x) c = [+x.lat, +x.lon]; } catch (e) { /* 다음 방법 */ } }
     if (!c && r.dest) { const g = await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${enc(r.dest)}&count=1`)).json(); const x = g?.results?.[0]; if (x) c = [x.latitude, x.longitude]; }
     if (!c) return;
+    if (mode === 'clim') {
+      // 아직 먼 여행: 최근 3년 같은 날짜의 실제 날씨 평균 (예년 날씨)
+      const n = dayCount(r), yrs = [1, 2, 3], acc = {};
+      await Promise.all(yrs.map(async (y) => {
+        const a = new Date(s0); a.setFullYear(a.getFullYear() - y); const b = new Date(a); b.setDate(b.getDate() + n - 1);
+        const js = await (await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${c[0].toFixed(3)}&longitude=${c[1].toFixed(3)}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto&start_date=${isoDate(a)}&end_date=${isoDate(b)}`)).json();
+        (js?.daily?.time || []).forEach((t, i) => { const k = i + 1; const o = (acc[k] ||= { hi: [], lo: [], rain: 0, n: 0 }); if (js.daily.temperature_2m_max[i] != null) { o.hi.push(js.daily.temperature_2m_max[i]); o.lo.push(js.daily.temperature_2m_min[i]); o.n++; if (js.daily.precipitation_sum[i] >= 1) o.rain++; } });
+      }));
+      const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length, days = {};
+      Object.entries(acc).forEach(([k, o]) => { if (o.n) days[isoDate(addDays(r.start, +k - 1))] = { clim: true, hi: avg(o.hi), lo: avg(o.lo), rain: o.rain, yrs: o.n }; });
+      WX[r.id] = { at: Date.now(), key, days };
+      try { localStorage.setItem('moa.wx', JSON.stringify(WX)); } catch (e) { /* noop */ }
+      if (room()?.id === r.id) safeRender();
+      return;
+    }
     const st = isoDate(s0 < today ? today : s0), en = isoDate(new Date(Math.min(e0, addDays(isoDate(today), 15))));
     const js = await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${c[0].toFixed(3)}&longitude=${c[1].toFixed(3)}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&start_date=${st}&end_date=${en}`)).json();
     const days = {}; (js?.daily?.time || []).forEach((t, i) => (days[t] = { c: js.daily.weather_code[i], hi: js.daily.temperature_2m_max[i], lo: js.daily.temperature_2m_min[i], p: js.daily.precipitation_probability_max?.[i] }));
-    WX[r.id] = { at: Date.now(), key: `${r.start}${r.end}${r.dest}`, days };
+    WX[r.id] = { at: Date.now(), key, days };
     try { localStorage.setItem('moa.wx', JSON.stringify(WX)); } catch (e) { /* noop */ }
     if (room()?.id === r.id) safeRender();
   } catch (e) { /* 날씨는 없어도 돼요 */ } finally { wxBusy[r.id] = false; }

@@ -725,3 +725,4 @@ th:hover .col-rs::after,.col-rs.on::after{background:var(--accent)}
 .wx-p{margin-left:4px;color:#3b82f6;font-weight:700}
 .today-wx{margin-top:6px}
 .today-wx .wx{font-size:14px;padding:4px 12px}
+.wx.clim{background:transparent;border:1px dashed var(--line-2);color:var(--muted);font-weight:600}
