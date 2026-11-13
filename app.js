@@ -187,7 +187,9 @@ function applyRemote(id, res) {
   const inc = cleanRoom(res.room), merged = local ? mergeRoom(local, inc) : inc;
   if (local) { const had = new Set(local.messages.map((m) => m.id)); const fresh = merged.messages.filter((m) => !had.has(m.id) && !m.sys && m.by !== meId(merged)); if (fresh.length) setTimeout(() => notifyChat(merged, fresh), 0); }
   const changed = !local || JSON.stringify(forSync(merged)) !== JSON.stringify(forSync(local));
-  S.rooms[id] = merged; Object.assign(S.sync[id], { v: res.version, hasPass: !!res.hasPass, needPass: false }); save();
+  // 같은 객체를 유지해요: 열린 창(서랍·상세 등)이 들고 있는 여행방이 낡은 사본이 되지 않도록
+  if (local) { Object.keys(local).forEach((k) => delete local[k]); Object.assign(local, merged); } else S.rooms[id] = merged;
+  Object.assign(S.sync[id], { v: res.version, hasPass: !!res.hasPass, needPass: false }); save();
   if (changed && route().id === id) safeRender();
 }
 function safeRender() {
@@ -243,7 +245,7 @@ async function joinShared(id, key, pass) {
   const res = await api('GET', id, { auth });
   S.sync = S.sync || {}; S.sync[id] = { ...auth, v: res.version, hasPass: !!res.hasPass };
   const ex = S.rooms[id];
-  const inc = cleanRoom(res.room); S.rooms[id] = ex ? mergeRoom(ex, inc) : inc; save();
+  const inc = cleanRoom(res.room); if (ex) { const m = mergeRoom(ex, inc); Object.keys(ex).forEach((k) => delete ex[k]); Object.assign(ex, m); } else S.rooms[id] = inc; save();
   if (ex) queuePush(S.rooms[id]);
   return { room: S.rooms[id], existed: !!ex };
 }
@@ -1414,30 +1416,44 @@ function planTab(r) {
   <div class="plan-pack" id="pack">${packTab(r)}</div>`;
 }
 // 날짜 미정 장소 서랍 (PC는 오른쪽, 모바일은 아래에서 올라와요)
-function pendingDrawer(r, day) {
-  const n = dayCount(r), lock = !!r.confirmed;
+function pendingDrawer(r0, day) {
+  // 서랍은 한 번만 열고, 날짜 선택·검색·넣기는 목록만 다시 그려요 (입력 칸·애니메이션 유지)
+  const R = () => room() || r0;
+  const n = dayCount(R()), lock = !!R().confirmed;
   ui.drawDay = Math.min(n, day || ui.drawDay || ui.planDay || 1);
-  const q = (ui.drawQ || '').toLowerCase();
-  const list = dayItems(r, 0).sort((a, b) => b.hearts.length - a.hearts.length || b.at - a.at).filter((p) => !q || `${p.name} ${p.addr || ''} ${p.memo || ''}`.toLowerCase().includes(q));
   const f = openModal({
-    title: `날짜 미정 장소 <span class="faint" style="font-weight:500">${dayItems(r, 0).length}</span>`, cls: 'drawer', raw: true,
+    title: `날짜 미정 장소 <span class="faint pend-count" style="font-weight:500"></span>`, cls: 'drawer', raw: true,
     body: `<div class="modal-b drawer-b">
-      ${lock ? '<p class="faint" style="margin:0">일정이 확정돼 있어요. 날짜를 넣으려면 먼저 "다시 열기"를 눌러주세요.</p>' : `<div class="field"><span>어느 날에 넣을까요?</span><div class="chips" style="flex-wrap:wrap">${Array.from({ length: n }, (_, i) => `<button type="button" class="chip ${ui.drawDay === i + 1 ? 'on' : ''}" data-dd="${i + 1}"><span class="dot" style="--c:${COLORS[i % COLORS.length]}"></span>${i + 1}일차</button>`).join('')}</div></div>`}
-      <div class="input-wrap">${I('search', 16)}<input type="search" data-dq value="${esc(ui.drawQ || '')}" placeholder="미정 장소에서 찾기" aria-label="미정 장소 찾기"></div>
-      <div class="pend-list">${list.length ? list.map((p) => `<div class="pend-item"><button type="button" class="grow pend-name" data-pd="${p.id}"><span class="dot" style="--c:${cat(p.cat).c}"></span><b>${esc(p.name)}</b>${p.hearts.length ? `<span class="faint">♥${p.hearts.length}</span>` : ''}${p.addr ? `<span class="faint ellip1 pend-addr">${esc(p.addr)}</span>` : ''}</button>${lock ? '' : `<button type="button" class="btn sm pri" data-pa="${p.id}">${ui.drawDay}일차에 넣기</button>`}</div>`).join('')
-        : `<p class="faint" style="text-align:center;margin:18px 0">${q ? '찾는 장소가 없어요' : '날짜 미정 장소가 없어요. 모두 일정에 들어갔어요 🎉'}</p>`}</div>
+      ${lock ? '<p class="faint" style="margin:0">일정이 확정돼 있어요. 날짜를 넣으려면 먼저 "다시 열기"를 눌러주세요.</p>' : `<div class="field"><span>어느 날에 넣을까요?</span><div class="chips pend-days" style="flex-wrap:wrap">${Array.from({ length: n }, (_, i) => `<button type="button" class="chip" data-dd="${i + 1}"><span class="dot" style="--c:${COLORS[i % COLORS.length]}"></span>${i + 1}일차</button>`).join('')}</div></div>`}
+      <div class="input-wrap">${I('search', 16)}<input type="search" data-dq value="${esc(ui.drawQ || '')}" placeholder="미정 장소에서 찾기" aria-label="미정 장소 찾기" autocomplete="off"></div>
+      <div class="pend-list"></div>
     </div>
     <div class="modal-f"><button type="button" class="btn" data-new style="flex:1">${I('search', 15)}새 장소 찾아서 추가</button></div>`,
   });
+  const qi = $('[data-dq]', f);
+  const draw = () => {
+    const r = R(), q = (qi.value || '').trim().toLowerCase(), all = dayItems(r, 0);
+    const list = all.sort((x, y) => y.hearts.length - x.hearts.length || y.at - x.at).filter((p) => !q || `${p.name} ${p.addr || ''} ${p.memo || ''}`.toLowerCase().includes(q));
+    $('.pend-count', f).textContent = all.length;
+    $$('[data-dd]', f).forEach((b) => b.classList.toggle('on', +b.dataset.dd === ui.drawDay));
+    $('.pend-list', f).innerHTML = list.length ? list.map((p) => `<div class="pend-item"><button type="button" class="grow pend-name" data-pd="${p.id}"><span class="dot" style="--c:${cat(p.cat).c}"></span><b>${esc(p.name)}</b>${p.hearts.length ? `<span class="faint">♥${p.hearts.length}</span>` : ''}${p.addr ? `<span class="faint ellip1 pend-addr">${esc(p.addr)}</span>` : ''}</button>${lock ? '' : `<button type="button" class="btn sm pri" data-pa="${p.id}">${ui.drawDay}일차에 넣기</button>`}</div>`).join('')
+      : `<p class="faint" style="text-align:center;margin:18px 0">${q ? '찾는 장소가 없어요' : '날짜 미정 장소가 없어요. 모두 일정에 들어갔어요 🎉'}</p>`;
+  };
+  draw();
   f.addEventListener('click', (ev) => {
     const t = ev.target.closest('[data-dd],[data-pa],[data-pd],[data-new]'); if (!t) return;
-    if (t.dataset.dd) { ui.drawDay = +t.dataset.dd; return pendingDrawer(r); }
-    if (t.dataset.pa) { const p = r.places.find((x) => x.id === t.dataset.pa); placeInDay(r, p, ui.drawDay); render(); toast(`'${p.name}'을(를) ${ui.drawDay}일차에 넣었어요`); return pendingDrawer(r); }
+    const r = R();
+    if (t.dataset.dd) { ui.drawDay = +t.dataset.dd; return draw(); }
+    if (t.dataset.pa) {
+      const p = r.places.find((x) => x.id === t.dataset.pa); if (!p) return draw();
+      placeInDay(r, p, ui.drawDay); toast(`'${p.name}'을(를) ${ui.drawDay}일차에 넣었어요`);
+      sync.deferred = true; // 서랍을 닫으면 뒤 화면을 새로 그려요
+      return draw();
+    }
     if (t.dataset.pd) { closeModal(); return placeDetail(r, r.places.find((x) => x.id === t.dataset.pd)); }
     if (t.dataset.new !== undefined) { closeModal(); placeModal(r, null, { day: lock ? 0 : ui.drawDay }); }
   });
-  const qi = $('[data-dq]', f);
-  qi.addEventListener('input', () => { ui.drawQ = qi.value; const pos = qi.selectionStart; pendingDrawer(r); const ni = $('#modal-root [data-dq]'); ni.focus(); ni.setSelectionRange(pos, pos); });
+  qi.addEventListener('input', () => { ui.drawQ = qi.value; draw(); });
 }
 // 장소 상세 (일정·표·서랍에서 눌렀을 때)
 function placeDetail(r, p) {
@@ -1463,6 +1479,7 @@ function placeDetail(r, p) {
   });
   f.addEventListener('click', (ev) => {
     const t = ev.target.closest('[data-x],[data-day],[data-e]'); if (!t) return;
+    r = room() || r; p = r.places.find((x) => x.id === p.id) || p; // 동기화로 바뀐 최신 데이터 사용
     const x = t.dataset.x;
     if (t.dataset.day !== undefined) { placeInDay(r, p, +t.dataset.day); render(); return placeDetail(r, p); }
     if (t.dataset.e) { closeModal(); return expModal(r, r.expenses.find((e) => e.id === t.dataset.e)); }
