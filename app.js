@@ -80,7 +80,7 @@ const I = (n, s = 18, sw = 1.7) => `<svg class="i" width="${s}" height="${s}" vi
 
 // ───────── 상태 ─────────
 let S = load();
-const ui = { moneyView: (() => { try { return localStorage.getItem('moa.moneyView') || 'list'; } catch (e) { return 'list'; } })(), planView: (() => { try { return localStorage.getItem('moa.planView') || 'cards'; } catch (e) { return 'cards'; } })(), planDay: 0, planMap: true, filter: 'all', sort: 'new', view: 'map', openCmt: {}, q: '' };
+const ui = { mapOff: (() => { try { return !!localStorage.getItem('moa.mapOff'); } catch (e) { return false; } })(), moneyView: (() => { try { return localStorage.getItem('moa.moneyView') || 'list'; } catch (e) { return 'list'; } })(), planView: (() => { try { return localStorage.getItem('moa.planView') || 'cards'; } catch (e) { return 'cards'; } })(), planDay: 0, planMap: true, filter: 'all', sort: 'new', view: 'map', openCmt: {}, q: '' };
 const failed = {};
 let mapCtl = null;
 
@@ -672,9 +672,9 @@ async function checkJoin() {
 }
 
 // ───────── 모달 / 시트 ─────────
-function openModal({ title, body, ok = '저장', onOk, danger, raw, onClose }) {
+function openModal({ title, body, ok = '저장', onOk, danger, raw, onClose, cls = '' }) {
   const root = $('#modal-root');
-  root.innerHTML = `<div class="overlay"><form class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+  root.innerHTML = `<div class="overlay ${cls}"><form class="modal" role="dialog" aria-modal="true" aria-label="${esc(title.replace(/<[^>]+>/g, ''))}">
     <div class="grab"></div>
     <div class="modal-h"><h2>${title}</h2><button type="button" class="btn ghost icon sm" data-close aria-label="닫기">${I('x')}</button></div>
     ${raw ? body : `<div class="modal-b">${body}</div>`}
@@ -984,7 +984,7 @@ function placeMenu(r, p) {
     if (b.dataset.m === 'del') removeUndo(r, 'places', p.id, `'${p.name}'을(를)`);
   });
 }
-function placeModal(r, p) {
+function placeModal(r, p, pre = {}) {
   const isNew = !p;
   p = p || { name: '', cat: 'spot', addr: '', memo: '', url: '', lat: null, lng: null };
   const pv = provider(r);
@@ -1010,7 +1010,7 @@ function placeModal(r, p) {
       if (!v.name) return false;
       if (isNew) {
         const np = { id: uid(), ...v, by: meId(r), hearts: [meId(r)], comments: [], day: null, order: 0, time: '', at: now() };
-        r.places.push(np); sysMsg(r, `${member(r, meId(r)).name}님이 '${v.name}'을(를) 모았어요`); touch(r, np);
+        r.places.push(np); sysMsg(r, `${member(r, meId(r)).name}님이 '${v.name}'을(를) 모았어요`); touch(r, np); if (pre.day) { placeInDay(r, np, pre.day); toast(`${pre.day}일차에 넣었어요`); }
         if (ui.filter !== 'all' && ui.filter !== v.cat && ui.filter !== 'none') ui.filter = 'all';
         toast('장소를 모았어요');
       } else { Object.assign(p, v); touch(r, p); toast('수정했어요'); }
@@ -1340,48 +1340,107 @@ async function sheetAdd(r, f) {
 
 function planTab(r) {
   if (ui.planView === 'table') return planSheet(r);
-  const days = dayCount(r), pending = dayItems(r, 0).sort((a, b) => b.hearts.length - a.hearts.length);
+  const days = dayCount(r), pending = dayItems(r, 0);
   const lock = !!r.confirmed, planned = r.places.filter((p) => p.day), visited = planned.filter((p) => p.visited).length;
-  return `<div class="sec"><div><h2>우리 일정</h2><p>${lock ? '확정된 일정이에요. 다녀온 곳은 체크해 보세요.' : '모아둔 곳을 날짜에 끌어다 놓고, 순서와 시간을 맞춰요.'}</p></div>
+  const cur = ui.planDay > days ? 0 : ui.planDay, showMap = !ui.mapOff;
+  const dayList = cur ? [cur] : Array.from({ length: days }, (_, i) => i + 1);
+  return `<div class="sec"><div><h2>우리 일정</h2><p>${lock ? '확정된 일정이에요. 다녀온 곳은 체크해 보세요.' : '날짜마다 갈 곳을 넣고, 순서와 시간을 맞춰요.'}</p></div>
     <div class="acts">${planViewSeg()}<button class="btn ghost" data-act="xl-out" title="엑셀로 받기">${I('down2', 16)}엑셀</button><button class="btn" data-act="copy-plan">${I('copy', 16)}단체톡용 복사</button>${lock ? '' : `<button class="btn pri" data-act="confirm-plan" ${planned.length ? '' : 'disabled style="opacity:.5"'}>${I('check', 16, 2.2)}일정 확정</button>`}</div></div>
-  <div class="places-layout ${isWide() ? 'split' : 'stack'} plan-layout"><div class="plan-main">
   ${lock ? `<div class="locked">${I('check', 18, 2.2)}<span><b>일정 확정</b> · ${esc(member(r, r.confirmed.by).name)}님이 ${timeAgo(r.confirmed.at)} 확정했어요</span><span class="faint">다녀온 곳 ${visited}/${planned.length}</span><span class="sp"></span><button class="btn sm" data-act="reopen-plan">다시 열기</button></div>` : ''}
-  <div class="days">
-  ${Array.from({ length: days }, (_, i) => {
-    const d = i + 1, items = dayItems(r, d), col = COLORS[i % COLORS.length];
-    return `<section class="day ${ui.planDay === d ? 'on' : ''}" data-drop="${d}" id="day-${d}">
-      <div class="day-head"><span class="day-no" style="color:${col}">${d}일차</span><span class="day-date">${dayLabel(r, d)}</span><span class="sp"></span>
+  <div class="plan-bar">
+    <div class="chips daychips-c">
+      <button class="chip ${!cur ? 'on' : ''}" data-act="plan-day" data-d="0">전체</button>
+      ${Array.from({ length: days }, (_, i) => `<button class="chip ${cur === i + 1 ? 'on' : ''}" data-act="plan-day" data-d="${i + 1}"><span class="dot" style="--c:${COLORS[i % COLORS.length]}"></span>${i + 1}일차</button>`).join('')}
+    </div>
+    <button class="btn sm pend-btn ${pending.length ? 'has' : ''}" data-act="pending" title="날짜 미정 장소">${I('pin', 15)}미정 <b>${pending.length}</b></button>
+    <button class="btn sm ${showMap ? '' : 'pri'}" data-act="map-toggle" aria-pressed="${showMap}" title="${showMap ? '지도 숨기기' : '지도 보이기'}">${I('map', 15)}${showMap ? '지도 끄기' : '지도 켜기'}</button>
+  </div>
+  <div class="places-layout ${showMap ? (isWide() ? 'split' : 'stack') : ''} plan-layout"><div class="plan-main">
+  <div class="days ${cur ? 'single' : ''}">
+  ${dayList.map((d) => {
+    const items = dayItems(r, d), col = COLORS[(d - 1) % COLORS.length];
+    return `<section class="day ${cur === d ? 'on' : ''}" data-drop="${d}" id="day-${d}">
+      <div class="day-head"><button class="day-pick" data-act="plan-day" data-d="${cur === d ? 0 : d}" title="${cur === d ? '전체 보기' : `${d}일차만 보기`}"><span class="day-no" style="color:${col}">${d}일차</span><span class="day-date">${dayLabel(r, d)}</span>${cur === d ? `<span class="faint" style="font-size:12px">· 전체 보기</span>` : ''}</button><span class="sp"></span>
         <button class="day-spent ${daySpent(r, d) ? '' : 'zero'}" data-act="add-exp" data-d="${d}" title="${d}일차 지출 추가">${I('wallet', 14)}${daySpent(r, d) ? won(daySpent(r, d)) : '지출'}<span class="plus">＋</span></button>
         ${items.length > 1 ? `<a class="btn ghost sm" href="${esc(routeUrl(r, items))}" target="_blank" rel="noopener" title="${PNAME[provider(r)]} 경로">${I('route', 16)}경로</a>` : ''}</div>
       ${items.length ? `<ol class="stops">${items.map((p, j) => `<li class="stop ${p.visited ? 'visited' : ''} ${ui.sel === p.id ? 'sel' : ''}" data-pid="${p.id}" ${lock ? '' : `draggable="true" data-drag="${p.id}"`} style="--c:${col}">
         <span class="stop-no">${j + 1}</span>
-        <div class="grow"><button type="button" class="stop-name" data-act="sel-place" data-id="${p.id}"><span class="dot" style="--c:${cat(p.cat).c}"></span>${esc(p.name)}${p.lat ? '' : '<span class="faint" style="font-size:11px;font-weight:500">위치 없음</span>'}</button>
-          <div class="stop-sub"><input type="time" value="${p.time || ''}" data-change="time" data-id="${p.id}" aria-label="${esc(p.name)} 시간" ${lock ? 'disabled' : ''}>${p.hearts.length ? `<span class="faint" style="font-size:12px">♥ ${p.hearts.length}</span>` : ''}<button class="stop-exp ${placeSpent(r, p.id) ? 'has' : ''}" data-act="add-exp" data-d="${d}" data-pid="${p.id}" title="${esc(p.name)}에서 쓴 돈 기록">${placeSpent(r, p.id) ? won(placeSpent(r, p.id)) : '＋ 지출'}</button></div></div>
+        <div class="grow"><button type="button" class="stop-name" data-act="place-detail" data-id="${p.id}"><span class="dot" style="--c:${cat(p.cat).c}"></span>${esc(p.name)}${p.lat ? '' : '<span class="faint" style="font-size:11px;font-weight:500">위치 없음</span>'}</button>
+          <div class="stop-sub"><input type="time" value="${p.time || ''}" data-change="time" data-id="${p.id}" aria-label="${esc(p.name)} 시간" ${lock ? 'disabled' : ''}>${p.hearts.length ? `<span class="faint" style="font-size:12px">♥ ${p.hearts.length}</span>` : ''}${p.memo ? `<span class="faint stop-memo">${esc(p.memo)}</span>` : ''}<button class="stop-exp ${placeSpent(r, p.id) ? 'has' : ''}" data-act="add-exp" data-d="${d}" data-pid="${p.id}" title="${esc(p.name)}에서 쓴 돈 기록">${placeSpent(r, p.id) ? won(placeSpent(r, p.id)) : '＋ 지출'}</button></div></div>
         ${lock ? `<button class="visit ${p.visited ? 'on' : ''}" data-act="visit" data-id="${p.id}" aria-pressed="${!!p.visited}" aria-label="${esc(p.name)} 다녀왔어요" title="다녀왔어요">${I('check', 15, 2.6)}</button>`
-          : `<div class="stop-ctrl"><button data-act="visit" data-id="${p.id}" aria-label="다녀왔어요 표시" title="다녀왔어요">${I('check', 16)}</button><button data-act="move" data-id="${p.id}" data-dir="-1" aria-label="위로">${I('up', 16)}</button><button data-act="move" data-id="${p.id}" data-dir="1" aria-label="아래로">${I('down', 16)}</button><button data-act="set-day" data-id="${p.id}" data-d="0" aria-label="일정에서 빼기">${I('x', 16)}</button></div>`}
-      </li>`).join('')}</ol>` : `<div class="day-empty">${lock ? '이 날은 비어 있어요' : '여기로 장소를 끌어다 놓거나<br>아래에서 골라 넣어요'}</div>`}
-      ${pending.length && !lock ? `<div class="day-add"><select data-change="assign" data-d="${d}" aria-label="${d}일차에 장소 추가"><option value="">＋ 모아둔 곳에서 추가</option>${pending.map((p) => `<option value="${p.id}">${esc(p.name)}${p.hearts.length ? ` ♥${p.hearts.length}` : ''}</option>`).join('')}</select></div>` : ''}
+          : `<div class="stop-ctrl"><button data-act="visit" data-id="${p.id}" aria-label="다녀왔어요 표시" title="다녀왔어요">${I('check', 16)}</button><button data-act="move" data-id="${p.id}" data-dir="-1" aria-label="위로">${I('up', 16)}</button><button data-act="move" data-id="${p.id}" data-dir="1" aria-label="아래로">${I('down', 16)}</button><button data-act="set-day" data-id="${p.id}" data-d="0" aria-label="일정에서 빼기" title="미정으로 빼기">${I('x', 16)}</button></div>`}
+      </li>`).join('')}</ol>` : `<div class="day-empty">${lock ? '이 날은 비어 있어요' : '아직 갈 곳이 없어요'}</div>`}
+      ${lock ? '' : `<button class="day-add-btn" data-act="pending" data-d="${d}">${I('plus', 15)}${d}일차에 장소 넣기</button>`}
     </section>`;
   }).join('')}
   </div>
-  ${lock && !pending.length ? '' : lock ? `<section class="tray"><div class="row"><h3>일정에 들지 않은 후보</h3><span class="faint">${pending.length}곳</span></div><div class="tray-items">${pending.map((p) => `<span class="tray-item" style="cursor:default;padding-right:12px"><span class="dot" style="--c:${cat(p.cat).c}"></span>${esc(p.name)}</span>`).join('')}</div></section>` : `<section class="tray" data-drop="0">
-    <div class="row"><h3>아직 날짜 미정</h3><span class="faint">${pending.length}곳</span><span class="sp"></span><span class="faint" style="font-size:12px">하트 많은 순</span></div>
-    ${pending.length ? `<div class="tray-items">${pending.map((p) => `<span class="tray-item" draggable="true" data-drag="${p.id}"><span class="dot" style="--c:${cat(p.cat).c}"></span>${esc(p.name)}${p.hearts.length ? ` <span class="faint">♥${p.hearts.length}</span>` : ''}
-      <select data-change="assign-one" data-id="${p.id}" aria-label="${esc(p.name)} 날짜"><option value="">날짜</option>${Array.from({ length: days }, (_, i) => `<option value="${i + 1}">${i + 1}일차</option>`).join('')}</select></span>`).join('')}</div>`
-      : `<p class="faint" style="margin:8px 0 0;font-size:14px">모든 장소가 일정에 들어갔어요. 일정에서 빼려면 여기로 끌어다 놓으세요.</p>`}
-  </section>`}
   <div class="plan-pack" id="pack">${packTab(r)}</div>
-  </div>${planMap(r)}</div>`;
+  </div>${showMap ? planMap(r) : ''}</div>`;
 }
+// 날짜 미정 장소 서랍 (PC는 오른쪽, 모바일은 아래에서 올라와요)
+function pendingDrawer(r, day) {
+  const n = dayCount(r), lock = !!r.confirmed;
+  ui.drawDay = Math.min(n, day || ui.drawDay || ui.planDay || 1);
+  const q = (ui.drawQ || '').toLowerCase();
+  const list = dayItems(r, 0).sort((a, b) => b.hearts.length - a.hearts.length || b.at - a.at).filter((p) => !q || `${p.name} ${p.addr || ''} ${p.memo || ''}`.toLowerCase().includes(q));
+  const f = openModal({
+    title: `날짜 미정 장소 <span class="faint" style="font-weight:500">${dayItems(r, 0).length}</span>`, cls: 'drawer', raw: true,
+    body: `<div class="modal-b drawer-b">
+      ${lock ? '<p class="faint" style="margin:0">일정이 확정돼 있어요. 날짜를 넣으려면 먼저 "다시 열기"를 눌러주세요.</p>' : `<div class="field"><span>어느 날에 넣을까요?</span><div class="chips" style="flex-wrap:wrap">${Array.from({ length: n }, (_, i) => `<button type="button" class="chip ${ui.drawDay === i + 1 ? 'on' : ''}" data-dd="${i + 1}"><span class="dot" style="--c:${COLORS[i % COLORS.length]}"></span>${i + 1}일차</button>`).join('')}</div></div>`}
+      <div class="input-wrap">${I('search', 16)}<input type="search" data-dq value="${esc(ui.drawQ || '')}" placeholder="미정 장소에서 찾기" aria-label="미정 장소 찾기"></div>
+      <div class="pend-list">${list.length ? list.map((p) => `<div class="pend-item"><button type="button" class="grow pend-name" data-pd="${p.id}"><span class="dot" style="--c:${cat(p.cat).c}"></span><b>${esc(p.name)}</b>${p.hearts.length ? `<span class="faint">♥${p.hearts.length}</span>` : ''}${p.addr ? `<span class="faint ellip1 pend-addr">${esc(p.addr)}</span>` : ''}</button>${lock ? '' : `<button type="button" class="btn sm pri" data-pa="${p.id}">${ui.drawDay}일차에 넣기</button>`}</div>`).join('')
+        : `<p class="faint" style="text-align:center;margin:18px 0">${q ? '찾는 장소가 없어요' : '날짜 미정 장소가 없어요. 모두 일정에 들어갔어요 🎉'}</p>`}</div>
+    </div>
+    <div class="modal-f"><button type="button" class="btn" data-new style="flex:1">${I('search', 15)}새 장소 찾아서 추가</button></div>`,
+  });
+  f.addEventListener('click', (ev) => {
+    const t = ev.target.closest('[data-dd],[data-pa],[data-pd],[data-new]'); if (!t) return;
+    if (t.dataset.dd) { ui.drawDay = +t.dataset.dd; return pendingDrawer(r); }
+    if (t.dataset.pa) { const p = r.places.find((x) => x.id === t.dataset.pa); placeInDay(r, p, ui.drawDay); render(); toast(`'${p.name}'을(를) ${ui.drawDay}일차에 넣었어요`); return pendingDrawer(r); }
+    if (t.dataset.pd) { closeModal(); return placeDetail(r, r.places.find((x) => x.id === t.dataset.pd)); }
+    if (t.dataset.new !== undefined) { closeModal(); placeModal(r, null, { day: lock ? 0 : ui.drawDay }); }
+  });
+  const qi = $('[data-dq]', f);
+  qi.addEventListener('input', () => { ui.drawQ = qi.value; const pos = qi.selectionStart; pendingDrawer(r); const ni = $('#modal-root [data-dq]'); ni.focus(); ni.setSelectionRange(pos, pos); });
+}
+// 장소 상세 (일정·표·서랍에서 눌렀을 때)
+function placeDetail(r, p) {
+  if (!p) return;
+  if (p.lat) selPlace(p.id, { focus: true });
+  const me = meId(r), on = p.hearts.includes(me), c = cat(p.cat), lx = r.expenses.filter((e) => e.pid === p.id), n = dayCount(r), lock = !!r.confirmed;
+  const f = openModal({
+    title: `<span class="dot" style="--c:${c.c};width:10px;height:10px"></span> ${esc(p.name)}`,
+    body: `<div class="row wrap" style="gap:6px"><span class="tag">${c.n}</span>${p.day ? `<span class="tag accent">${p.day}일차${dl(r, p.day)}${p.time ? ` · ${p.time}` : ''}</span>` : '<span class="tag">날짜 미정</span>'}${p.visited ? '<span class="tag">다녀옴</span>' : ''}<span class="faint" style="font-size:12px">${esc(member(r, p.by).name)}님 제안</span></div>
+      ${p.addr ? `<div class="pd-row">${I('pin', 16)}<span class="grow">${esc(p.addr)}</span></div>` : ''}
+      ${p.memo ? `<p class="pd-memo">${esc(p.memo)}</p>` : ''}
+      <div class="pd-acts">
+        <a class="btn pri" href="${esc(navLink(r, p))}" target="_blank" rel="noopener">${I('route', 16)}길찾기</a>
+        <a class="btn" href="${esc(placeLink(r, p))}" target="_blank" rel="noopener">${I('share', 16)}장소 정보</a>
+        <button type="button" class="btn ${on ? 'on-heart' : ''}" data-x="heart">${I('heart', 16, 2)}${p.hearts.length || ''}</button>
+      </div>
+      ${lock ? '' : `<div class="field"><span>날짜</span><div class="chips" style="flex-wrap:wrap"><button type="button" class="chip ${!p.day ? 'on' : ''}" data-day="0">미정</button>${Array.from({ length: n }, (_, i) => `<button type="button" class="chip ${p.day === i + 1 ? 'on' : ''}" data-day="${i + 1}">${i + 1}일차</button>`).join('')}</div></div>`}
+      <div class="field"><span>여기서 쓴 돈 ${lx.length ? `<b>${won(placeSpent(r, p.id))}</b>` : ''}</span>
+        ${lx.map((e) => `<button type="button" class="pd-exp" data-e="${e.id}"><span class="grow">${esc(e.title)} <span class="faint">· ${esc(member(r, e.payer).name)}</span></span><span class="amt">${e.cur && e.cur !== 'KRW' && curOf(e.cur) ? `${fmtCur(e.cur, e.orig)} · ` : ''}${won(e.amount)}</span></button>`).join('')}
+        <button type="button" class="btn sm" data-x="exp" style="align-self:flex-start">${I('plus', 14)}지출 기록</button></div>
+      ${p.comments?.length ? `<div class="field"><span>의견 ${p.comments.length}</span>${p.comments.slice(-3).map((m) => `<div class="pd-cmt"><b>${esc(member(r, m.by).name)}</b> ${esc(m.text)}</div>`).join('')}</div>` : ''}
+      <div class="row" style="gap:6px"><button type="button" class="btn sm ghost" data-x="edit">${I('edit', 15)}수정</button>${p.lat ? `<button type="button" class="btn sm ghost" data-x="map">${I('map', 15)}지도에서 보기</button>` : ''}<span class="sp"></span><button type="button" class="btn sm ghost danger" data-x="del">${I('trash', 15)}삭제</button></div>`,
+  });
+  f.addEventListener('click', (ev) => {
+    const t = ev.target.closest('[data-x],[data-day],[data-e]'); if (!t) return;
+    const x = t.dataset.x;
+    if (t.dataset.day !== undefined) { placeInDay(r, p, +t.dataset.day); render(); return placeDetail(r, p); }
+    if (t.dataset.e) { closeModal(); return expModal(r, r.expenses.find((e) => e.id === t.dataset.e)); }
+    if (x === 'heart') { const i = p.hearts.indexOf(me); if (i >= 0) p.hearts.splice(i, 1); else p.hearts.push(me); touch(r, p); render(); return placeDetail(r, p); }
+    closeModal();
+    if (x === 'exp') expModal(r, null, { day: p.day || 0, pid: p.id });
+    if (x === 'edit') placeModal(r, p);
+    if (x === 'map') { if (ui.mapOff) { ui.mapOff = false; saveMapOff(); render(); } selPlace(p.id, { scroll: true }); }
+    if (x === 'del') removeUndo(r, 'places', p.id, `'${p.name}'을(를)`);
+  });
+}
+const saveMapOff = () => { try { localStorage.setItem('moa.mapOff', ui.mapOff ? '1' : ''); } catch (e) { /* noop */ } };
 function planMap(r) {
-  const n = dayCount(r), cur = ui.planDay > n ? 0 : ui.planDay;
-  return `<div class="mapblock plan-map">
-    <div class="daychips"><div class="chips">
-      <button class="chip ${!cur ? 'on' : ''}" data-act="plan-day" data-d="0">전체</button>
-      ${Array.from({ length: n }, (_, i) => `<button class="chip ${cur === i + 1 ? 'on' : ''}" data-act="plan-day" data-d="${i + 1}"><span class="dot" style="--c:${COLORS[i % COLORS.length]}"></span>${i + 1}일차</button>`).join('')}
-    </div>${isWide() ? '' : `<button class="btn ghost sm icon" data-act="plan-map" aria-label="${ui.planMap ? '지도 접기' : '지도 펼치기'}" title="${ui.planMap ? '지도 접기' : '지도 펼치기'}">${I(ui.planMap ? 'up' : 'map', 16)}</button>`}</div>
-    ${ui.planMap || isWide() ? `<div class="${isWide() ? 'map-pane' : 'map-mobile'}"><div id="map-slot"></div></div>${isWide() ? '' : '<div class="map-grip" data-grip role="slider" aria-label="지도 크기 조절 (끌어서 조절)" title="끌어서 지도 크기 조절"><i></i></div>'}` : ''}
-  </div>`;
+  return `<div class="mapblock plan-map">${isWide() ? '<div class="map-pane"><div id="map-slot"></div></div>' : '<div class="map-mobile"><div id="map-slot"></div></div><div class="map-grip" data-grip role="slider" aria-label="지도 크기 조절 (끌어서 조절)" title="끌어서 지도 크기 조절 · 두 번 누르면 기본"><i></i></div>'}</div>`;
 }
 function planText(r) {
   let t = `✈️ ${r.name}\n📍 ${r.dest} · ${range(r)} (${nights(r)})\n`;
@@ -2109,9 +2168,12 @@ document.addEventListener('click', (ev) => {
     },
     'plan-day': () => {
       ui.planDay = +el.dataset.d; render();
-      if (ui.planDay) $(`#day-${ui.planDay}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      $('.plan-bar')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     },
     'plan-map': () => { ui.planMap = !ui.planMap; render(); },
+    'map-toggle': () => { ui.mapOff = !ui.mapOff; saveMapOff(); render(); },
+    pending: () => pendingDrawer(r, +el.dataset.d || 0),
+    'place-detail': () => placeDetail(r, P(el.dataset.id)),
     'place-exps': () => { const p = P(el.dataset.id); if (p) placeExps(r, p); },
     'money-view': () => { ui.moneyView = el.dataset.k; try { localStorage.setItem('moa.moneyView', ui.moneyView); } catch (e) { /* noop */ } render(); },
     'sheet-exp-del': () => { const e = r.expenses.find((x) => x.id === el.dataset.id); if (e) removeUndo(r, 'expenses', e.id, `'${e.title}' 지출을`); },

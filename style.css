@@ -657,3 +657,43 @@ th:hover .col-rs::after,.col-rs.on::after{background:var(--accent)}
 .sheet .c-spent input::placeholder{color:var(--faint);font-weight:400}
 .sh-multi{width:100%;height:39px;border:0;background:none;text-align:right;padding:0 8px;font:inherit;font-weight:600;cursor:pointer;color:color-mix(in srgb,var(--warm) 80%,var(--text));display:flex;align-items:center;justify-content:flex-end;gap:4px}
 .sh-multi small{font-size:11px;color:var(--faint);font-weight:500}
+
+/* 일정 탭 정리: 상단 바 · 일차별 보기 · 미정 서랍 · 상세 */
+.plan-bar{display:flex;align-items:center;gap:8px;margin:0 0 14px;flex-wrap:wrap}
+.plan-bar .daychips-c{flex:1;min-width:0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+.plan-bar .daychips-c::-webkit-scrollbar{display:none}
+.plan-bar .btn{flex:none}
+.pend-btn b{font-variant-numeric:tabular-nums}
+.pend-btn.has{border-color:color-mix(in srgb,var(--warm) 50%,var(--line));color:color-mix(in srgb,var(--warm) 85%,var(--text))}
+.days.single{grid-template-columns:minmax(0,1fr)}
+.days.single .day{padding:20px}
+.day-pick{display:flex;align-items:baseline;gap:8px;border:0;background:none;padding:2px 0;cursor:pointer;font:inherit;color:inherit;text-align:left}
+.day-pick:hover .day-no{text-decoration:underline;text-underline-offset:4px}
+.day-add-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:8px;height:38px;border:1px dashed var(--line-2);border-radius:10px;background:none;color:var(--muted);font:inherit;font-size:13.5px;font-weight:600;cursor:pointer}
+.day-add-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.stop-memo{font-size:12px;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stop-name:hover{color:var(--accent)}
+/* 서랍: PC는 오른쪽 패널, 모바일은 아래 시트 */
+@media (min-width:761px){
+  .overlay.drawer{place-items:stretch end;padding:0}
+  .overlay.drawer .modal{width:min(420px,100vw);max-height:none;height:100dvh;border-radius:20px 0 0 20px;animation:slideIn .28s var(--ease)}
+}
+@keyframes slideIn{from{transform:translateX(100%)}}
+.drawer .modal{display:flex;flex-direction:column}
+.drawer-b{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+.pend-list{display:flex;flex-direction:column;gap:6px}
+.pend-item{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.pend-name{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;border:0;background:none;padding:0;text-align:left;cursor:pointer;font:inherit;color:inherit;min-width:0}
+.pend-name b{font-size:14.5px}
+.pend-addr{flex-basis:100%;font-size:12px}
+.pend-item .btn{flex:none}
+/* 장소 상세 */
+.pd-row{display:flex;gap:8px;align-items:flex-start;color:var(--muted);font-size:14px}
+.pd-memo{margin:0;padding:10px 12px;border-radius:10px;background:var(--sunk);font-size:14.5px;white-space:pre-wrap}
+.pd-acts{display:flex;gap:8px;flex-wrap:wrap}
+.pd-acts .btn{flex:1;justify-content:center;min-width:96px}
+.pd-acts .on-heart{color:var(--warm);border-color:var(--warm)}
+.pd-exp{display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font:inherit;text-align:left;cursor:pointer}
+.pd-exp:hover{border-color:var(--accent)}
+.pd-cmt{font-size:14px;padding:6px 0;border-bottom:1px dashed var(--line)}
+@media (max-width:760px){.plan-bar{gap:6px}.plan-bar .daychips-c{flex-basis:100%}.plan-bar .btn{flex:1;justify-content:center}}
