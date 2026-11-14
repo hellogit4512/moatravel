@@ -1878,12 +1878,12 @@ function installRow() {
 }
 if ('serviceWorker' in navigator && location.protocol === 'https:') addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 
-// ───── 엑셀 주고받기 (SheetJS는 필요할 때만 불러와요) ─────
+// ───── 엑셀 주고받기 (SheetJS(xlsx-js-style)는 필요할 때만 불러와요) ─────
 function loadXLSX() {
   if (window.XLSX) return Promise.resolve(window.XLSX);
   return (loadXLSX.p ||= new Promise((res, rej) => {
     const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.src = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js'; // SheetJS 0.18.5 + 칸 색·글꼴 저장
     s.onload = () => res(window.XLSX); s.onerror = () => { loadXLSX.p = null; rej(new Error('엑셀 기능을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.')); };
     document.head.appendChild(s);
   }));
@@ -1893,10 +1893,119 @@ const XL = {
   expenses: ['일차', '항목', '금액', '분류', '낸 사람', '나눈 사람', '장소', '1인 금액', 'ID', '현지 금액', '환율'],
   checklist: ['항목', '담당', '챙김', 'ID'],
 };
+// 첫 시트 '한눈에 보기': 구글 시트로 정리하던 모양 그대로 — 왼쪽 총 일정(항공·숙소 띠, 분류별 후보), 가운데 일차별 일정, 오른쪽 Budget
+const XC = { title: 'FFF2CC', head: 'FCE5CD', day: 'EA9999', date: 'EFEFEF', budget: 'D9EAD3', bcat: 'A4C2F4', pink: 'F4CCCC', out: 'FCE5CD', back: 'C9DAF8', stays: ['D9EAD3', 'D5A6BD', 'D9D2E9', 'C9DAF8', 'FFF2CC', 'FCE5CD'] };
+const WON_FMT = '"₩"#,##0;-"₩"#,##0';
+function overviewSheet(X, r) {
+  const n = dayCount(r), mn = (id) => (id ? member(r, id).name : '');
+  const cells = {}, merges = []; let maxR = 0, maxC = 0;
+  const mid = { horizontal: 'center', vertical: 'center' };
+  const st = (fill, o = {}) => ({ alignment: mid, ...(fill ? { fill: { patternType: 'solid', fgColor: { rgb: fill } } } : {}), ...o });
+  const put = (row, col, v, s = st(), extra = {}) => {
+    if (v === '' || v == null) { if (!s.fill) return; v = ''; }
+    cells[X.utils.encode_cell({ r: row, c: col })] = { v, t: typeof v === 'number' ? 'n' : 's', s, ...extra };
+    maxR = Math.max(maxR, row); maxC = Math.max(maxC, col);
+  };
+  const merge = (row, c1, c2, v, s) => { for (let c = c1; c <= c2; c++) put(row, c, c === c1 ? v : '', s); if (c2 > c1) merges.push({ s: { r: row, c: c1 }, e: { r: row, c: c2 } }); };
+  const bold = { font: { bold: true } };
+
+  // ── 왼쪽: 총 일정 ──
+  const placeCats = CATS.filter((c) => r.places.some((p) => p.cat === c.k));
+  const L = 1, LW = Math.max(n, placeCats.length, 1);
+  merge(0, L, L + LW - 1, `총 일정 (${undated(r) ? '날짜 미정' : `${r.start.replace(/-/g, '.')} ~ ${r.end.replace(/-/g, '.')}`} - ${nights(r)})`, st(XC.title, { font: { bold: true, sz: 13 } }));
+  for (let d = 1; d <= n; d++) put(1, L + d - 1, d);
+  let row = 2;
+  // 항공권(티켓·서류 보관함): 이름은 색 칸, 메모는 줄마다 아래로
+  const air = (r.docs || []).filter((x) => x.kind === 'air' && x.day >= 1 && x.day <= n);
+  if (air.length) {
+    let h = 0;
+    for (let d = 1; d <= n; d++) {
+      let y = row;
+      air.filter((x) => x.day === d).forEach((x) => {
+        put(y++, L + d - 1, x.title, st(d <= n / 2 || d === 1 ? XC.out : XC.back));
+        String(x.note || '').split(/\r?\n/).map((t) => t.trim()).filter(Boolean).slice(0, 4).forEach((t) => put(y++, L + d - 1, t));
+      });
+      h = Math.max(h, y - row);
+    }
+    row += h;
+  }
+  // 숙소: 들어가는 날부터 다음 숙소 전날(마지막 숙소는 마지막 밤)까지 한 줄 띠로
+  const stays = r.places.filter((p) => p.cat === 'stay' && p.day >= 1 && p.day <= n).sort((a, b) => a.day - b.day || sortPlan(a, b));
+  stays.forEach((p, i) => {
+    const next = stays.slice(i + 1).find((q) => q.day > p.day);
+    const end = Math.max(p.day, Math.min(n, next ? next.day - 1 : n - 1));
+    merge(row++, L + p.day - 1, L + end - 1, p.name, st(XC.stays[i % XC.stays.length]));
+  });
+  // 분류별로 모아둔 곳
+  if (placeCats.length) {
+    row += 2;
+    placeCats.forEach((c, i) => {
+      put(row, L + i, c.n, st(XC.head, bold));
+      r.places.filter((p) => p.cat === c.k).sort((a, b) => b.hearts.length - a.hearts.length || (a.at || 0) - (b.at || 0))
+        .forEach((p, j) => put(row + 1 + j, L + i, p.name));
+    });
+  }
+
+  // ── 가운데: 일차별 일정 ──
+  const M = L + LW + 2;
+  for (let d = 1; d <= n; d++) {
+    const c = M + d - 1;
+    put(0, c, `${d}일차`, st(XC.day, bold));
+    put(1, c, undated(r) ? '' : dayLabel(r, d), st(XC.date));
+    dayItems(r, d).forEach((p, j) => put(2 + j, c, p.time ? `${p.name}(${p.time})` : p.name, st(p.cat === 'stay' ? XC.stays[stays.indexOf(p) % XC.stays.length] : null)));
+  }
+  const pend = dayItems(r, 0);
+  if (pend.length) {
+    put(0, M + n, '미정', st(XC.date, bold)); put(1, M + n, '', st(XC.date));
+    pend.forEach((p, j) => put(2 + j, M + n, p.name));
+  }
+
+  // ── 오른쪽: Budget ──
+  const B = M + n + (pend.length ? 2 : 1), money = { numFmt: WON_FMT };
+  merge(0, B, B + 2, 'Budget', st(XC.budget, bold));
+  row = 1;
+  const order = ['move', 'stay', 'food', 'play', 'shop', 'etc'];
+  const exps = r.expenses.slice().sort((a, b) => order.indexOf(ecat(a.cat).k) - order.indexOf(ecat(b.cat).k) || expDay(r, a) - expDay(r, b) || a.at - b.at);
+  const right = { alignment: { horizontal: 'right', vertical: 'center' } }, left = { alignment: { horizontal: 'left', vertical: 'center' } };
+  exps.forEach((e, i) => {
+    if (i === 0 || ecat(exps[i - 1].cat).k !== ecat(e.cat).k) put(row, B, ecat(e.cat).n, st(XC.bcat));
+    put(row, B + 1, e.amount, { ...right, ...money }, { z: WON_FMT });
+    const foreign = e.cur && e.cur !== 'KRW' && curOf(e.cur) ? ` (${fmtCur(e.cur, e.orig)})` : '';
+    put(row, B + 2, e.title + foreign, { ...left, ...(e.pid ? { fill: { patternType: 'solid', fgColor: { rgb: XC.pink } } } : {}) });
+    row++;
+  });
+  const total = r.expenses.reduce((s, e) => s + e.amount, 0);
+  const col = X.utils.encode_col(B + 1);
+  put(row, B, 'TOTAL', st(XC.bcat, bold));
+  put(row, B + 1, total, { ...right, ...money, font: { bold: true } }, exps.length ? { z: WON_FMT, f: `SUM(${col}2:${col}${row})` } : { z: WON_FMT });
+  row++;
+  if (r.members.length > 1) {
+    put(row, B, '1인당', st(XC.bcat));
+    put(row, B + 1, Math.round(total / r.members.length), { ...right, ...money }, { z: WON_FMT });
+    put(row, B + 2, `${r.members.length}명`, left);
+    row++;
+    const { tx } = settle(r);
+    if (tx.length) {
+      row++;
+      merge(row++, B, B + 2, '정산', st(XC.budget, bold));
+      tx.forEach((t) => { put(row, B, `${mn(t.from)} → ${mn(t.to)}`); put(row, B + 1, t.amt, { ...right, ...money }, { z: WON_FMT }); row++; });
+    }
+  }
+
+  const ws = { ...cells, '!ref': X.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(maxR, 1), c: maxC } }), '!merges': merges };
+  ws['!cols'] = Array.from({ length: maxC + 1 }, (_, c) => ({ wch: c === 0 ? 2 : c < L + LW ? 16 : c < M ? 4 : c < B ? 20 : c === B ? 10 : c === B + 1 ? 12 : 26 }));
+  ws['!rows'] = Array.from({ length: maxR + 1 }, (_, i) => ({ hpt: i === 0 ? 24 : 19 }));
+  return ws;
+}
 async function exportExcel(r) {
   const X = await loadXLSX();
   const mn = (id) => (id ? member(r, id).name : '');
-  const sheet = (head, rows, widths) => { const ws = X.utils.aoa_to_sheet([head, ...rows]); ws['!cols'] = widths.map((w) => ({ wch: w })); return ws; };
+  const headStyle = { font: { bold: true }, fill: { patternType: 'solid', fgColor: { rgb: XC.date } }, alignment: { horizontal: 'center', vertical: 'center' } };
+  const sheet = (head, rows, widths) => {
+    const ws = X.utils.aoa_to_sheet([head, ...rows]); ws['!cols'] = widths.map((w) => ({ wch: w }));
+    head.forEach((_, c) => { const a = X.utils.encode_cell({ r: 0, c }); if (ws[a]) ws[a].s = headStyle; });
+    return ws;
+  };
   const places = r.places.slice().sort((a, b) => (a.day || 99) - (b.day || 99) || sortPlan(a, b))
     .map((p) => [p.day || '', p.day ? dayItems(r, p.day).indexOf(p) + 1 : '', p.time || '', p.name, cat(p.cat).n, p.addr || '', p.memo || '', p.hearts.length, p.visited ? 'O' : '', mn(p.by), p.id]);
   const exps = r.expenses.slice().sort((a, b) => expDay(r, a) - expDay(r, b) || a.at - b.at)
@@ -1905,13 +2014,14 @@ async function exportExcel(r) {
   const info = [['여행 이름', r.name], ['여행지', r.dest || '미정'], ['날짜', range(r)], ['기간', nights(r)], ['일행', r.members.map((m) => m.name).join(', ')], [],
     ['총 지출', r.expenses.reduce((s, e) => s + e.amount, 0)], [], ['정산', '', ''], ['보내는 사람', '받는 사람', '금액'], ...tx.map((t) => [mn(t.from), mn(t.to), t.amt]), [],
     ['사람별', '낸 돈', '받을(+)/보낼(-) 돈'], ...r.members.map((m) => [m.name, r.expenses.filter((e) => e.payer === m.id).reduce((s, e) => s + e.amount, 0), Math.round(bal[m.id] || 0)]), [],
-    ['※ 장소·지출·준비물 시트를 고친 뒤 모아여행에서 "엑셀 올리기"를 하면 반영돼요. ID 칸은 지우지 마세요(새 줄은 비워두면 돼요).']];
+    ['※ 장소·지출·준비물 시트를 고친 뒤 모아여행에서 "엑셀 올리기"를 하면 반영돼요. ID 칸은 지우지 마세요(새 줄은 비워두면 돼요). \'한눈에 보기\' 시트는 보기용이라 올려도 반영되지 않아요.']];
   const wb = X.utils.book_new();
-  const wi = X.utils.aoa_to_sheet(info); wi['!cols'] = [{ wch: 14 }, { wch: 28 }, { wch: 18 }];
-  X.utils.book_append_sheet(wb, wi, '여행 정보');
+  X.utils.book_append_sheet(wb, overviewSheet(X, r), '한눈에 보기');
   X.utils.book_append_sheet(wb, sheet(XL.places, places, [5, 5, 7, 22, 6, 30, 30, 5, 6, 10, 12]), '장소·일정');
   X.utils.book_append_sheet(wb, sheet(XL.expenses, exps, [6, 20, 10, 6, 8, 20, 16, 10, 12, 12, 8]), '지출');
   X.utils.book_append_sheet(wb, sheet(XL.checklist, r.checklist.map((c) => [c.text, mn(c.who) || '공용', c.done ? 'O' : '', c.id]), [24, 8, 6, 12]), '준비물');
+  const wi = X.utils.aoa_to_sheet(info); wi['!cols'] = [{ wch: 14 }, { wch: 28 }, { wch: 18 }];
+  X.utils.book_append_sheet(wb, wi, '여행 정보');
   X.writeFile(wb, `모아여행-${r.name}.xlsx`);
   toast('엑셀 파일을 받았어요');
 }
