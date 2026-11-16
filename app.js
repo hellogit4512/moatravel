@@ -195,7 +195,7 @@ function applyRemote(id, res) {
 function safeRender() {
   const a = document.activeElement;
   if (!$('#modal-root').innerHTML && a?.closest?.('.composer') && route().tab === 'chat') { refreshChat(); return; }
-  if ($('#modal-root').innerHTML || dragId || (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.value)) { sync.deferred = true; return; }
+  if ($('#modal-root').innerHTML || dragId || (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && (a.value || /^(time|date|number)$/.test(a.type)))) { sync.deferred = true; return; }
   sync.deferred = false; render();
 }
 function onSyncError(id, e) {
@@ -2531,7 +2531,14 @@ document.addEventListener('change', (ev) => {
   if (/^assign|^time$/.test(k) && locked(r)) { render(); return; }
   if (k === 'assign' && el.value) { placeInDay(r, r.places.find((x) => x.id === el.value), +el.dataset.d); render(); }
   if (k === 'assign-one' && el.value) { placeInDay(r, r.places.find((x) => x.id === el.dataset.id), +el.value); render(); toast(`${el.value}일차에 넣었어요`); }
-  if (k === 'time') { const p = r.places.find((x) => x.id === el.dataset.id); p.time = el.value; reorderByTime(r, p.day); touch(r, p); render(); }
+  if (k === 'time') {
+    // 시간 칸은 시·분을 나눠 입력하는 동안에도 change가 나요. 입력 중에 화면을 다시 그리면 나머지 입력이 사라지므로,
+    // 값은 바로 저장하고 순서 정렬·다시 그리기는 칸을 벗어날 때 해요.
+    const p = r.places.find((x) => x.id === el.dataset.id); if (!p) return;
+    p.time = el.value; touch(r, p);
+    const done = () => { reorderByTime(r, p.day); touch(r, p); render(); };
+    if (document.activeElement === el) { if (!el._blurBound) { el._blurBound = true; el.addEventListener('blur', () => setTimeout(done, 0), { once: true }); } } else done();
+  }
   if (k === 'provider') { r.mapProvider = el.value; mapCtl?.destroy(); mapCtl = null; touch(r); render(); toast(`${PNAME[provider(r)]}을(를) 써요`); }
 });
 // 모아둔 곳 글자 검색 (다시 그리지 않고 바로 거르기)
