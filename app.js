@@ -1448,7 +1448,7 @@ function planTab(r) {
     <button class="btn sm ${showMap ? '' : 'pri'}" data-act="map-toggle" aria-pressed="${showMap}" title="${showMap ? '지도 숨기기' : '지도 보이기'}" aria-label="${showMap ? '지도 끄기' : '지도 켜기'}">${I('map', 15)}<span class="pb-t">${showMap ? '지도 끄기' : '지도 켜기'}</span></button>
   </div>
   ${wxStrip(r)}
-  <div class="places-layout ${showMap ? (isWide() ? 'split' : 'stack') : ''} plan-layout"><div class="plan-main">
+  <div class="places-layout ${showMap ? (isWide() ? 'split' : 'stack') : ''} plan-layout ${cur ? 'one-day' : ''}"><div class="plan-main">
   <div class="days ${cur ? 'single' : ''}">
   ${dayList.map((d) => {
     const items = dayItems(r, d), col = COLORS[(d - 1) % COLORS.length];
