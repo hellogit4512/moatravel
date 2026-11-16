@@ -741,3 +741,36 @@ th:hover .col-rs::after,.col-rs.on::after{background:var(--accent)}
 .wx-day b .faint{font-size:13px;font-weight:500}
 .wx-day.clim{background:transparent;border:1px dashed var(--line-2)}
 .wx-res{display:flex;flex-direction:column;gap:6px}
+
+/* 일정 카드: 칸이 좁아도 깨지지 않게 */
+.stop{grid-template-columns:var(--no,22px) minmax(0,1fr) auto}
+.stop>.grow{min-width:0}
+.stop-name{overflow-wrap:anywhere}
+.stop-sub{flex-wrap:wrap;row-gap:4px;min-width:0}
+.stop-memo{flex:1 1 80px;min-width:0;max-width:none}
+/* 마우스가 있는 화면: 순서 버튼은 올렸을 때만 위에 떠서, 평소엔 이름 칸을 좁히지 않아요 */
+@media (hover:hover) and (min-width:761px){
+  .stop:has(>.stop-ctrl){grid-template-columns:var(--no,22px) minmax(0,1fr)}
+  .stop-ctrl{position:absolute;right:2px;top:6px;z-index:2;padding:2px;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 12px rgba(15,60,45,.12);pointer-events:none}
+  .stop:hover .stop-ctrl,.stop:focus-within .stop-ctrl{pointer-events:auto}
+}
+/* 하루만 볼 때: 일정 글씨·간격을 크게 */
+.days.single .day{padding:22px 24px 16px}
+.days.single .day-head{margin-bottom:10px}
+.days.single .day-no{font-size:24px}
+.days.single .day-date{font-size:14px}
+.days.single .stop{--no:28px;gap:12px;padding:14px 6px 14px 2px}
+.days.single .stop-no{width:28px;height:28px;font-size:13px}
+.days.single .stop-name{font-size:16.5px}
+.days.single .stop-sub{margin-top:6px;gap:10px}
+.days.single .stop-sub input[type=time]{height:30px;font-size:13px}
+.days.single .stop-memo{font-size:13px}
+.days.single .day-add-btn{height:44px;font-size:14px}
+/* PC 일정 탭: 넓은 화면을 다 쓰고, 지도를 크게 */
+@media (min-width:1181px){
+  .main:has(.plan-layout.split){max-width:1760px}
+  .places-layout.split.plan-layout{grid-template-columns:minmax(0,1fr) minmax(420px,45%);gap:24px}
+  .places-layout.split.plan-layout.one-day{grid-template-columns:minmax(380px,520px) minmax(0,1fr)}
+  .plan-layout.split .days{grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
+  .plan-map .map-pane{top:68px;height:calc(100vh - 88px);min-height:480px}
+}
