@@ -8,12 +8,12 @@ const KEY = 'moa.v2';
 const COLORS = ['#0fa37a', '#ff6a47', '#3b82f6', '#f2a100', '#8b5cf6', '#14b8a6', '#ec4899', '#64748b', '#84cc16', '#0ea5e9'];
 const TONES = [['#0fa37a', '#ffffff'], ['#ff6a47', '#ffffff'], ['#3b82f6', '#ffffff'], ['#ffc53d', '#3a2b00'], ['#8b5cf6', '#ffffff'], ['#14b8a6', '#ffffff'], ['#ec4899', '#ffffff'], ['#1f2a26', '#e9f1ed']];
 const CATS = [
-  { k: 'spot', n: '명소', c: '#0fa37a' }, { k: 'food', n: '맛집', c: '#ff6a47' }, { k: 'cafe', n: '카페', c: '#c2803d' },
-  { k: 'stay', n: '숙소', c: '#3b82f6' }, { k: 'shop', n: '쇼핑', c: '#8b5cf6' }, { k: 'etc', n: '기타', c: '#94a3b8' },
+  { k: 'spot', n: '명소', c: '#0fa37a', i: 'flag' }, { k: 'food', n: '맛집', c: '#ff6a47', i: 'food' }, { k: 'cafe', n: '카페', c: '#c2803d', i: 'cafe' },
+  { k: 'stay', n: '숙소', c: '#3b82f6', i: 'bed' }, { k: 'shop', n: '쇼핑', c: '#8b5cf6', i: 'bag' }, { k: 'etc', n: '기타', c: '#94a3b8', i: 'more' },
 ];
 const ECATS = [
-  { k: 'food', n: '식비', c: '#ff6a47' }, { k: 'move', n: '교통', c: '#3b82f6' }, { k: 'stay', n: '숙박', c: '#0fa37a' },
-  { k: 'play', n: '관광', c: '#f2a100' }, { k: 'shop', n: '쇼핑', c: '#8b5cf6' }, { k: 'etc', n: '기타', c: '#94a3b8' },
+  { k: 'food', n: '식비', c: '#ff6a47', i: 'food' }, { k: 'move', n: '교통', c: '#3b82f6', i: 'bus' }, { k: 'stay', n: '숙박', c: '#0fa37a', i: 'bed' },
+  { k: 'play', n: '관광', c: '#f2a100', i: 'ticket' }, { k: 'shop', n: '쇼핑', c: '#8b5cf6', i: 'bag' }, { k: 'etc', n: '기타', c: '#94a3b8', i: 'more' },
 ];
 const MOODS = ['😆', '🥰', '😌', '🤤', '😴', '🥲'];
 const TABS = [
@@ -55,6 +55,14 @@ const ICONS = {
   down: '<path d="M6.5 9.5l5.5 5.5 5.5-5.5"/>',
   search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/>',
   copy: '<rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2"/><path d="M15.5 8.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7.5a2 2 0 0 0 2 2h2.5"/>',
+  food: '<path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10"/><path d="M17 21V3c-2 1.5-3 4.2-3 7.5h3"/>',
+  cafe: '<path d="M4.5 9.5h11v4.5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5z"/><path d="M15.5 10.5h1.3a2.6 2.6 0 0 1 0 5.2h-1.6"/><path d="M8 3.5c-.8 1 .8 1.8 0 3M11.5 3.5c-.8 1 .8 1.8 0 3"/>',
+  bed: '<path d="M3 19V6M3 15.5h18V19M21 15.5v-3a3 3 0 0 0-3-3h-7.5v6"/><circle cx="6.8" cy="11.8" r="1.8"/>',
+  bag: '<path d="M5 8.5h14l-1.1 11.5H6.1z"/><path d="M9 8.5V7a3 3 0 0 1 6 0v1.5"/>',
+  flag: '<path d="M5.5 21V3.5"/><path d="M5.5 4.5h12l-2.3 4 2.3 4h-12"/>',
+  bus: '<rect x="5" y="3.5" width="14" height="14" rx="3"/><path d="M5 11h14M8 20.5v-3M16 20.5v-3"/><circle cx="8.5" cy="14.3" r=".7" fill="currentColor"/><circle cx="15.5" cy="14.3" r=".7" fill="currentColor"/>',
+  plane: '<path d="M21 4.5l-5.5 5.2 2 9.3-1.8 1.5-3.7-7.2-4 3.7.4 3-1.4 1.2-1.7-3.6L1.7 16l1.2-1.4 3 .4 3.7-4-7.2-3.7L4 5.5l9.3 2 5.2-5.5a1.8 1.8 0 0 1 2.5 2.5z"/>',
+  receipt: '<path d="M6 3.5h12v17l-2.4-1.6-2.4 1.6-2.4-1.6-2.4 1.6L6 20.5z"/><path d="M9 8.5h6M9 12h6M9 15.5h3.5"/>',
   more: '<circle cx="5.5" cy="12" r="1.1" fill="currentColor"/><circle cx="12" cy="12" r="1.1" fill="currentColor"/><circle cx="18.5" cy="12" r="1.1" fill="currentColor"/>',
   grid: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/>',
@@ -100,6 +108,8 @@ const now = () => Date.now();
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const enc = encodeURIComponent;
 const won = (n) => Math.round(n).toLocaleString('ko-KR') + '원';
+// 분류 표시: 색 점 대신 분류 색으로 칠한 아이콘 배지 (아이콘이 없으면 점)
+const catIc = (c, s = 13) => (c.i ? `<span class="cic" style="--c:${c.c}" title="${c.n}">${I(c.i, s, 2)}</span>` : `${catIc(c)}`);
 const cat = (k) => CATS.find((c) => c.k === k) || CATS[5];
 const ecat = (k) => ECATS.find((c) => c.k === k) || ECATS[5];
 const pad = (n) => String(n).padStart(2, '0');
@@ -927,9 +937,9 @@ function placesTab(r) {
   ${r.places.length > 3 ? `<div class="input-wrap" style="margin-bottom:12px">${I('search', 16)}<input type="search" data-q value="${esc(ui.q)}" placeholder="모아둔 곳에서 찾기 — 이름, 주소, 한마디, 제안한 사람" aria-label="모아둔 곳 검색"></div>` : ''}
   <div class="toolbar">
     <div class="chips" role="tablist">
-      <button class="chip ${ui.filter === 'all' ? 'on' : ''}" data-act="filter" data-k="all">전체 ${r.places.length}</button>
-      <button class="chip ${ui.filter === 'none' ? 'on' : ''}" data-act="filter" data-k="none">날짜 미정</button>
-      ${CATS.filter((c) => r.places.some((p) => p.cat === c.k)).map((c) => `<button class="chip ${ui.filter === c.k ? 'on' : ''}" data-act="filter" data-k="${c.k}"><span class="dot" style="--c:${c.c}"></span>${c.n}</button>`).join('')}
+      <button class="chip ${ui.filter === 'all' ? 'on' : ''}" data-act="filter" data-k="all">${I('grid', 15)}전체 ${r.places.length}</button>
+      <button class="chip ${ui.filter === 'none' ? 'on' : ''}" data-act="filter" data-k="none">${I('cal', 15)}날짜 미정</button>
+      ${CATS.filter((c) => r.places.some((p) => p.cat === c.k)).map((c) => `<button class="chip ${ui.filter === c.k ? 'on' : ''}" data-act="filter" data-k="${c.k}">${catIc(c)}${c.n}</button>`).join('')}
     </div>
     <div class="row">
       ${showList ? `<div class="seg"><button class="${ui.sort === 'new' ? 'on' : ''}" data-act="sort" data-k="new">최신</button><button class="${ui.sort === 'heart' ? 'on' : ''}" data-act="sort" data-k="heart">${I('heart', 14, 2)}인기</button></div>` : ''}
@@ -949,7 +959,7 @@ function placeCard(r, p) {
   const c = cat(p.cat), by = member(r, p.by), me = meId(r), on = p.hearts.includes(me), open = ui.openCmt[p.id];
   const days = dayCount(r);
   return `<article class="place ${ui.sel === p.id ? 'sel' : ''}" data-act="sel-place" data-id="${p.id}" data-pid="${p.id}" data-s="${esc(`${p.name} ${p.addr || ''} ${p.memo || ''} ${by.name}`.toLowerCase())}">
-    <div class="place-meta"><span class="dot" style="--c:${c.c}"></span><span>${c.n}</span><span>·</span>${av(by, 18)}<span>${esc(by.name)}</span>${p.day ? `<span class="sp"></span>${p.visited ? '<span class="tag">다녀옴</span>' : ''}<span class="tag accent">${p.day}일차${p.time ? ' ' + p.time : ''}</span>` : ''}</div>
+    <div class="place-meta">${catIc(c)}<span>${c.n}</span><span>·</span>${av(by, 18)}<span>${esc(by.name)}</span>${p.day ? `<span class="sp"></span>${p.visited ? '<span class="tag">다녀옴</span>' : ''}<span class="tag accent">${p.day}일차${p.time ? ' ' + p.time : ''}</span>` : ''}</div>
     <h3 class="place-name">${esc(p.name)}</h3>
     ${p.addr ? `<div class="place-addr">${esc(p.addr)}</div>` : ''}
     ${p.memo ? `<p class="place-memo">${esc(p.memo)}</p>` : ''}
@@ -1008,7 +1018,7 @@ function placeModal(r, p, pre = {}) {
       </div>
       <div class="results" aria-live="polite"></div>
       <label class="field"><span>이름</span><input type="text" name="name" required maxlength="60" value="${esc(p.name)}"></label>
-      <div class="field"><span>분류</span><div class="chips" style="flex-wrap:wrap">${CATS.map((c) => `<label class="chip ${p.cat === c.k ? 'on' : ''}"><input type="radio" name="cat" value="${c.k}" ${p.cat === c.k ? 'checked' : ''}><span class="dot" style="--c:${c.c}"></span>${c.n}</label>`).join('')}</div></div>
+      <div class="field"><span>분류</span><div class="chips" style="flex-wrap:wrap">${CATS.map((c) => `<label class="chip ${p.cat === c.k ? 'on' : ''}"><input type="radio" name="cat" value="${c.k}" ${p.cat === c.k ? 'checked' : ''}>${catIc(c)}${c.n}</label>`).join('')}</div></div>
       <label class="field"><span>주소</span><input type="text" name="addr" maxlength="140" value="${esc(p.addr)}"></label>
       <div class="row" style="margin-top:-8px;gap:6px"><div class="loc faint grow" style="font-size:12.5px;display:flex;align-items:center;gap:4px">${I('pin', 14)}${p.lat ? '지도 위치가 연결됐어요' : '검색하거나 지도에서 직접 고르면 표시돼요'}</div><button type="button" class="btn sm" data-pickmap>${I('map', 15)}지도에서 고르기</button></div>
       <div class="picker hidden"><div class="picker-map"></div><div class="faint" style="font-size:12px;margin-top:6px">지도를 눌러 위치를 찍으세요. 주소는 자동으로 채워져요.</div></div>
@@ -1034,7 +1044,7 @@ function placeModal(r, p, pre = {}) {
     box.innerHTML = '<div class="hint">찾는 중…</div>';
     const res = await searchPlaces(q, r);
     if (!res.items.length) { box.innerHTML = `<div class="hint">${res.error ? '검색에 실패했어요.' : '검색 결과가 없어요.'} 이름·주소를 직접 적어도 괜찮아요.</div>`; return; }
-    box.innerHTML = res.items.map((x, i) => `<button type="button" data-i="${i}"><span class="dot" style="--c:${cat(x.cat).c};margin-top:7px"></span><span class="grow"><b>${esc(x.name)}</b>${x.hint ? ` <span class="faint" style="font-size:12px">${esc(x.hint)}</span>` : ''}<br><span class="faint">${esc(x.addr)}</span></span></button>`).join('') + `<div class="hint" style="font-size:11.5px;padding:6px 12px">검색: ${PNAME[res.src]}</div>`;
+    box.innerHTML = res.items.map((x, i) => `<button type="button" data-i="${i}">${catIc(cat(x.cat))}<span class="grow"><b>${esc(x.name)}</b>${x.hint ? ` <span class="faint" style="font-size:12px">${esc(x.hint)}</span>` : ''}<br><span class="faint">${esc(x.addr)}</span></span></button>`).join('') + `<div class="hint" style="font-size:11.5px;padding:6px 12px">검색: ${PNAME[res.src]}</div>`;
     $$('button', box).forEach((b) => b.addEventListener('click', () => {
       const x = res.items[b.dataset.i];
       form.name.value = x.name; form.addr.value = x.addr || '';
@@ -1189,7 +1199,7 @@ function todayTab(r) {
   <div class="faint" style="font-size:12px;text-align:center;margin:6px 0 14px">${done === items.length ? '오늘 일정을 모두 마쳤어요 🎉' : `${items.length}곳 중 ${done}곳 다녀왔어요`}</div>
   ${next ? `<section class="card now" data-pid="${next.id}">
     <div class="now-k">${ni === 0 && !done ? '첫 번째 장소' : '지금 갈 곳'} · ${ni + 1}/${items.length}</div>
-    <h2 class="now-name"><span class="dot" style="--c:${cat(next.cat).c}"></span>${esc(next.name)}</h2>
+    <h2 class="now-name">${catIc(cat(next.cat), 16)}${esc(next.name)}</h2>
     <div class="faint now-sub">${next.time ? `<b style="color:var(--text)">${next.time}</b> · ` : ''}${esc(next.addr || '주소 없음')}</div>
     ${next.memo ? `<p class="now-memo">${esc(next.memo)}</p>` : ''}
     <div class="now-acts">
@@ -1468,7 +1478,7 @@ function planTab(r) {
         ${items.length > 1 ? `<a class="btn ghost sm" href="${esc(routeUrl(r, items))}" target="_blank" rel="noopener" title="${PNAME[provider(r)]} 경로">${I('route', 16)}경로</a>` : ''}</div>
       ${items.length ? `<ol class="stops">${items.map((p, j) => `<li class="stop ${p.visited ? 'visited' : ''} ${ui.sel === p.id ? 'sel' : ''}" data-pid="${p.id}" ${lock ? '' : `draggable="true" data-drag="${p.id}"`} style="--c:${col}">
         <span class="stop-no">${j + 1}</span>
-        <div class="grow"><button type="button" class="stop-name" data-act="place-detail" data-id="${p.id}"><span class="dot" style="--c:${cat(p.cat).c}"></span>${esc(p.name)}${p.lat ? '' : '<span class="faint" style="font-size:11px;font-weight:500">위치 없음</span>'}</button>
+        <div class="grow"><button type="button" class="stop-name" data-act="place-detail" data-id="${p.id}">${catIc(cat(p.cat))}${esc(p.name)}${p.lat ? '' : '<span class="faint" style="font-size:11px;font-weight:500">위치 없음</span>'}</button>
           <div class="stop-sub"><input type="time" value="${p.time || ''}" data-change="time" data-id="${p.id}" aria-label="${esc(p.name)} 시간" ${lock ? 'disabled' : ''}>${p.hearts.length ? `<span class="faint" style="font-size:12px">♥ ${p.hearts.length}</span>` : ''}${p.memo ? `<span class="faint stop-memo">${esc(p.memo)}</span>` : ''}<button class="stop-exp ${placeSpent(r, p.id) ? 'has' : ''}" data-act="add-exp" data-d="${d}" data-pid="${p.id}" title="${esc(p.name)}에서 쓴 돈 기록">${placeSpent(r, p.id) ? won(placeSpent(r, p.id)) : '＋ 지출'}</button></div></div>
         ${lock ? `<button class="visit ${p.visited ? 'on' : ''}" data-act="visit" data-id="${p.id}" aria-pressed="${!!p.visited}" aria-label="${esc(p.name)} 다녀왔어요" title="다녀왔어요">${I('check', 15, 2.6)}</button>`
           : `<div class="stop-ctrl"><button data-act="visit" data-id="${p.id}" aria-label="다녀왔어요 표시" title="다녀왔어요">${I('check', 16)}</button><button data-act="move" data-id="${p.id}" data-dir="-1" aria-label="위로">${I('up', 16)}</button><button data-act="move" data-id="${p.id}" data-dir="1" aria-label="아래로">${I('down', 16)}</button><button data-act="set-day" data-id="${p.id}" data-d="0" aria-label="일정에서 빼기" title="미정으로 빼기">${I('x', 16)}</button></div>`}
@@ -1501,7 +1511,7 @@ function pendingDrawer(r0, day) {
     const list = all.sort((x, y) => y.hearts.length - x.hearts.length || y.at - x.at).filter((p) => !q || `${p.name} ${p.addr || ''} ${p.memo || ''}`.toLowerCase().includes(q));
     $('.pend-count', f).textContent = all.length;
     $$('[data-dd]', f).forEach((b) => b.classList.toggle('on', +b.dataset.dd === ui.drawDay));
-    $('.pend-list', f).innerHTML = list.length ? list.map((p) => `<div class="pend-item"><button type="button" class="grow pend-name" data-pd="${p.id}"><span class="dot" style="--c:${cat(p.cat).c}"></span><b>${esc(p.name)}</b>${p.hearts.length ? `<span class="faint">♥${p.hearts.length}</span>` : ''}${p.addr ? `<span class="faint ellip1 pend-addr">${esc(p.addr)}</span>` : ''}</button>${lock ? '' : `<button type="button" class="btn sm pri" data-pa="${p.id}">${ui.drawDay}일차에 넣기</button>`}</div>`).join('')
+    $('.pend-list', f).innerHTML = list.length ? list.map((p) => `<div class="pend-item"><button type="button" class="grow pend-name" data-pd="${p.id}">${catIc(cat(p.cat))}<b>${esc(p.name)}</b>${p.hearts.length ? `<span class="faint">♥${p.hearts.length}</span>` : ''}${p.addr ? `<span class="faint ellip1 pend-addr">${esc(p.addr)}</span>` : ''}</button>${lock ? '' : `<button type="button" class="btn sm pri" data-pa="${p.id}">${ui.drawDay}일차에 넣기</button>`}</div>`).join('')
       : `<p class="faint" style="text-align:center;margin:18px 0">${q ? '찾는 장소가 없어요' : '날짜 미정 장소가 없어요. 모두 일정에 들어갔어요 🎉'}</p>`;
   };
   draw();
@@ -1526,7 +1536,7 @@ function placeDetail(r, p) {
   if (p.lat) selPlace(p.id, { focus: true });
   const me = meId(r), on = p.hearts.includes(me), c = cat(p.cat), lx = r.expenses.filter((e) => e.pid === p.id), n = dayCount(r), lock = !!r.confirmed;
   const f = openModal({
-    title: `<span class="dot" style="--c:${c.c};width:10px;height:10px"></span> ${esc(p.name)}`,
+    title: `${catIc(c, 15)} ${esc(p.name)}`,
     body: `<div class="row wrap" style="gap:6px"><span class="tag">${c.n}</span>${p.day ? `<span class="tag accent">${p.day}일차${dl(r, p.day)}${p.time ? ` · ${p.time}` : ''}</span>` : '<span class="tag">날짜 미정</span>'}${p.visited ? '<span class="tag">다녀옴</span>' : ''}<span class="faint" style="font-size:12px">${esc(member(r, p.by).name)}님 제안</span></div>
       ${p.addr ? `<div class="pd-row">${I('pin', 16)}<span class="grow">${esc(p.addr)}</span></div>` : ''}
       ${p.memo ? `<p class="pd-memo">${esc(p.memo)}</p>` : ''}
@@ -1579,7 +1589,7 @@ const placeSpent = (r, pid) => r.expenses.filter((e) => e.pid === pid).reduce((s
 function tripToday(r) { if (undated(r)) return 0; const d = Math.round((new Date(isoDate(new Date())) - new Date(r.start)) / 864e5) + 1; return d >= 1 && d <= dayCount(r) ? d : 0; }
 function expRow(r, e) {
   const pl = e.pid && r.places.find((p) => p.id === e.pid);
-  return `<button class="r" data-act="edit-exp" data-id="${e.id}"><span class="dot" style="--c:${ecat(e.cat).c}"></span><div class="grow"><b>${esc(e.title)}</b>${e.photos?.length ? ` <span class="faint" title="영수증 ${e.photos.length}장" style="display:inline-flex;vertical-align:-3px">${I('clip', 15)}</span>` : ''}<div class="faint" style="font-size:12px">${ecat(e.cat).n}${pl ? ` · ${I('pin', 11)} ${esc(pl.name)}` : ''} · ${esc(member(r, e.payer).name)} 결제 · ${e.split.length}명</div></div><div style="text-align:right"><div class="amt">${won(e.amount)}</div><div class="faint num" style="font-size:12px">${e.cur && e.cur !== 'KRW' && curOf(e.cur) ? `${fmtCur(e.cur, e.orig)} · ` : ''}1인 ${won(e.amount / Math.max(1, e.split.length))}</div></div></button>`;
+  return `<button class="r" data-act="edit-exp" data-id="${e.id}">${catIc(ecat(e.cat), 15)}<div class="grow"><b>${esc(e.title)}</b>${e.photos?.length ? ` <span class="faint" title="영수증 ${e.photos.length}장" style="display:inline-flex;vertical-align:-3px">${I('clip', 15)}</span>` : ''}<div class="faint" style="font-size:12px">${ecat(e.cat).n}${pl ? ` · ${I('pin', 11)} ${esc(pl.name)}` : ''} · ${esc(member(r, e.payer).name)} 결제 · ${e.split.length}명</div></div><div style="text-align:right"><div class="amt">${won(e.amount)}</div><div class="faint num" style="font-size:12px">${e.cur && e.cur !== 'KRW' && curOf(e.cur) ? `${fmtCur(e.cur, e.orig)} · ` : ''}1인 ${won(e.amount / Math.max(1, e.split.length))}</div></div></button>`;
 }
 function settle(r) {
   const bal = {}; r.members.forEach((m) => (bal[m.id] = 0));
@@ -1615,7 +1625,7 @@ function moneyTab(r) {
   <div class="card">
     <div class="stats"><div><div class="k">총 지출</div><div class="v">${won(total)}</div></div><div><div class="k">1인 평균</div><div class="v">${won(total / Math.max(1, r.members.length))}</div></div><div><div class="k">내 몫</div><div class="v">${won(mine)}</div></div></div>
     <div style="padding:0 20px 18px"><div class="bar">${byCat.map(([c, v]) => `<i title="${c.n} ${won(v)}" style="width:${(v / total) * 100}%;background:${c.c}"></i>`).join('')}</div>
-    <div class="legend">${byCat.map(([c, v]) => `<span class="row" style="gap:6px"><span class="dot" style="--c:${c.c}"></span>${c.n} <b>${won(v)}</b></span>`).join('')}</div></div>
+    <div class="legend">${byCat.map(([c, v]) => `<span class="row" style="gap:6px">${catIc(c)}${c.n} <b>${won(v)}</b></span>`).join('')}</div></div>
     ${dayBars(r)}
   </div>
   ${fxBar(r)}
@@ -1706,7 +1716,7 @@ function expModal(r, e, pre = {}) {
     body: `<label class="field"><span>금액</span><div class="row amt-row"><input class="amount-input num grow" type="text" name="amount" required inputmode="decimal" autocomplete="off" value="${shown ? Number(shown).toLocaleString('ko-KR', { maximumFractionDigits: 2 }) : ''}" placeholder="0원">${curs.length || ec !== 'KRW' ? `<select name="cur" class="cur-sel" aria-label="통화"><option value="KRW">원</option>${[...new Set([...curs, ...(ec !== 'KRW' ? [ec] : [])])].map((k) => `<option value="${k}" ${ec === k ? 'selected' : ''}>${curOf(k).s} ${curOf(k).n}</option>`).join('')}</select>` : `<button type="button" class="btn sm ghost" data-fx style="flex:none">외화?</button>`}</div></label>
       <div class="faint per" style="font-size:13px;margin-top:-8px"></div>
       <label class="field"><span>무엇에 썼나요</span><input type="text" name="title" required maxlength="60" value="${esc(e.title)}" placeholder="예: 흑돼지 저녁"></label>
-      <div class="field"><span>분류</span><div class="chips" style="flex-wrap:wrap">${ECATS.map((c) => `<label class="chip ${e.cat === c.k ? 'on' : ''}"><input type="radio" name="cat" value="${c.k}" ${e.cat === c.k ? 'checked' : ''}><span class="dot" style="--c:${c.c}"></span>${c.n}</label>`).join('')}</div></div>
+      <div class="field"><span>분류</span><div class="chips" style="flex-wrap:wrap">${ECATS.map((c) => `<label class="chip ${e.cat === c.k ? 'on' : ''}"><input type="radio" name="cat" value="${c.k}" ${e.cat === c.k ? 'checked' : ''}>${catIc(c)}${c.n}</label>`).join('')}</div></div>
       <div class="grid2"><label class="field"><span>언제</span><select name="day"><option value="0">여행 전 · 공통</option>${Array.from({ length: dayCount(r) }, (_, i) => `<option value="${i + 1}" ${curDay === i + 1 ? 'selected' : ''}>${i + 1}일차${dl(r, i + 1)}</option>`).join('')}</select></label>
         <label class="field"><span>어디서 <small>· 선택</small></span><select name="pid"><option value="">장소 없음</option>${planned.map((p) => `<option value="${p.id}" data-d="${p.day}" ${e.pid === p.id ? 'selected' : ''}>${p.day}일차 · ${esc(p.name)}</option>`).join('')}</select></label></div>
       <div class="field"><span>누가 냈나요</span><div class="chips" style="flex-wrap:wrap">${r.members.map((m) => `<label class="chip ${e.payer === m.id ? 'on' : ''}"><input type="radio" name="payer" value="${m.id}" ${e.payer === m.id ? 'checked' : ''}>${esc(m.name)}</label>`).join('')}</div></div>
@@ -1766,8 +1776,8 @@ function packTab(r) {
 
 // ───── 티켓·서류 보관함 ─────
 const DKINDS = [
-  { k: 'air', n: '항공권', c: '#3b82f6' }, { k: 'stay', n: '숙소 예약', c: '#0fa37a' }, { k: 'ticket', n: '입장권·티켓', c: '#f2a100' },
-  { k: 'move', n: '교통', c: '#14b8a6' }, { k: 'receipt', n: '영수증', c: '#ff6a47' }, { k: 'etc', n: '기타', c: '#94a3b8' },
+  { k: 'air', n: '항공권', c: '#3b82f6', i: 'plane' }, { k: 'stay', n: '숙소 예약', c: '#0fa37a', i: 'bed' }, { k: 'ticket', n: '입장권·티켓', c: '#f2a100', i: 'ticket' },
+  { k: 'move', n: '교통', c: '#14b8a6', i: 'bus' }, { k: 'receipt', n: '영수증', c: '#ff6a47', i: 'receipt' }, { k: 'etc', n: '기타', c: '#94a3b8', i: 'more' },
 ];
 const dkind = (k) => DKINDS.find((x) => x.k === k) || DKINDS[5];
 function vaultSeg(r, cur) {
@@ -1780,7 +1790,7 @@ function docsTab(r) {
     <div class="acts"><button class="btn pri" data-act="add-doc">${I('plus')}올리기</button></div></div>
   ${list.length ? `<div class="docs">${list.map((d) => { const k = dkind(d.kind), w = member(r, d.by); return `<button class="doc" data-act="open-doc" data-id="${d.id}">
       <div class="doc-thumb">${d.photos?.[0] ? ph(d.photos[0], esc(d.title), false) : `<span class="ill">${I('ticket', 28, 1.4)}</span>`}${d.photos?.length > 1 ? `<span class="more">+${d.photos.length - 1}</span>` : ''}</div>
-      <div class="doc-body"><div class="row" style="gap:6px"><span class="dot" style="--c:${k.c}"></span><span class="faint" style="font-size:12px">${k.n}</span>${d.day ? `<span class="sp"></span><span class="tag accent">${d.day}일차</span>` : ''}</div>
+      <div class="doc-body"><div class="row" style="gap:6px">${catIc(k)}<span class="faint" style="font-size:12px">${k.n}</span>${d.day ? `<span class="sp"></span><span class="tag accent">${d.day}일차</span>` : ''}</div>
         <b>${esc(d.title)}</b>${d.note ? `<div class="faint ellip1">${esc(d.note)}</div>` : ''}<div class="row faint" style="gap:5px;font-size:12px;margin-top:2px">${av(w, 16)}${esc(w.name)}</div></div></button>`; }).join('')}</div>`
     : `<div class="card">${empty('ticket', '아직 올린 서류가 없어요', '예약 확인 화면이나 티켓을 캡처해서 올려두면, 현장에서 바로 꺼내 볼 수 있어요.', `<button class="btn pri" data-act="add-doc">${I('plus')}첫 서류 올리기</button>`)}</div>`}
   ${receipts.length ? `<div class="sec"><div><h2>정산 영수증</h2><p>지출에 붙인 영수증이에요.</p></div></div>
@@ -1791,7 +1801,7 @@ function docModal(r) {
     title: '티켓 · 서류 올리기',
     body: `<label class="field"><span>사진 <small>· 캡처 화면도 좋아요, 최대 6장</small></span><input type="file" name="files" accept="image/*" multiple required style="height:auto;padding:10px"></label>
       <label class="field"><span>이름</span><input type="text" name="title" required maxlength="60" placeholder="예: 제주항공 왕복 e티켓"></label>
-      <div class="field"><span>종류</span><div class="chips" style="flex-wrap:wrap">${DKINDS.map((k, i) => `<label class="chip ${i === 0 ? 'on' : ''}"><input type="radio" name="kind" value="${k.k}" ${i === 0 ? 'checked' : ''}><span class="dot" style="--c:${k.c}"></span>${k.n}</label>`).join('')}</div></div>
+      <div class="field"><span>종류</span><div class="chips" style="flex-wrap:wrap">${DKINDS.map((k, i) => `<label class="chip ${i === 0 ? 'on' : ''}"><input type="radio" name="kind" value="${k.k}" ${i === 0 ? 'checked' : ''}>${catIc(k)}${k.n}</label>`).join('')}</div></div>
       <label class="field"><span>언제 쓰나요 <small>· 선택</small></span><select name="day"><option value="">날짜 없음</option>${Array.from({ length: dayCount(r) }, (_, i) => `<option value="${i + 1}">${i + 1}일차${dl(r, i + 1)}</option>`).join('')}</select></label>
       <label class="field"><span>메모 <small>· 예약번호, 체크인 시간 등</small></span><textarea name="note" maxlength="300" style="min-height:70px"></textarea></label>`,
     ok: '올리기',
@@ -1813,7 +1823,7 @@ function docView(r, d) {
   const k = dkind(d.kind);
   const f = openModal({
     title: esc(d.title),
-    body: `<div class="row wrap" style="gap:8px"><span class="tag"><span class="dot" style="--c:${k.c}"></span>${k.n}</span>${d.day ? `<span class="tag accent">${d.day}일차${dl(r, d.day)}</span>` : ''}<span class="faint" style="font-size:12px">${esc(member(r, d.by).name)} · ${timeAgo(d.at)}</span></div>
+    body: `<div class="row wrap" style="gap:8px"><span class="tag">${catIc(k)}${k.n}</span>${d.day ? `<span class="tag accent">${d.day}일차${dl(r, d.day)}</span>` : ''}<span class="faint" style="font-size:12px">${esc(member(r, d.by).name)} · ${timeAgo(d.at)}</span></div>
       ${d.note ? `<p style="margin:0;white-space:pre-wrap">${esc(d.note)}</p>` : ''}
       <div class="doc-full">${(d.photos || []).map((x) => ph(x, esc(d.title))).join('') || '<p class="faint">사진이 없어요</p>'}</div>
       <button type="button" class="btn sm ghost danger" data-del style="align-self:flex-start">${I('trash', 15)}삭제</button>`,
@@ -2585,14 +2595,15 @@ document.addEventListener('drop', (ev) => {
 
 // 옆으로 넘기는 줄(일차 칩 등): 화면을 다시 그려도 넘겨 둔 위치를 지키고, 고른 칩이 가려져 있으면 보이게 살짝 넘겨요
 const HSCROLL = ['.chips', '.days-pick .seg', '.wx-days'];
+const hsKey = (q, el, i) => `${location.hash.split('?')[0]}|${q}|${el.querySelector('[data-act]')?.dataset.act || ''}|${i}`;
 function hscrollSnap() {
   const m = {};
-  HSCROLL.forEach((q) => $$(q).forEach((el, i) => { if (el.scrollLeft) m[`${q}#${i}`] = el.scrollLeft; }));
+  HSCROLL.forEach((q) => $$(q).forEach((el, i) => { if (el.scrollLeft) m[hsKey(q, el, i)] = el.scrollLeft; }));
   return m;
 }
 function hscrollRestore(m) {
   HSCROLL.forEach((q) => $$(q).forEach((el, i) => {
-    const x = m[`${q}#${i}`]; if (x) el.scrollLeft = x;
+    const x = m[hsKey(q, el, i)]; if (x) el.scrollLeft = x;
     const on = el.querySelector(':scope > .on'); if (!on || el.scrollWidth <= el.clientWidth + 1) return;
     const er = el.getBoundingClientRect(), r = on.getBoundingClientRect();
     if (r.left < er.left + 8 || r.right > er.right - 24) el.scrollBy({ left: r.left - er.left - (er.width - r.width) / 2, behavior: x && !calm() ? 'smooth' : 'auto' });
