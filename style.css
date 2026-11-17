@@ -837,3 +837,20 @@ th:hover .col-rs::after,.col-rs.on::after{background:var(--accent)}
 .day-head{flex-wrap:nowrap}
 .day-head .day-pick{min-width:0;overflow:hidden}
 @container (max-width:360px){.day-head .btn .bt{display:none}.day-head .btn{width:32px;padding:0}}
+
+/* 프로필 고양이 */
+.av.cat-av{background:none;border-radius:30%;overflow:hidden;padding:0}
+.av.cat-av svg{display:block;width:100%;height:100%}
+.cat-me{display:inline-flex;align-items:center;gap:6px;margin-left:10px;color:var(--accent);font-weight:600;text-decoration:none}
+.cat-me .av{width:20px;height:20px;font-size:9px;box-shadow:none}
+.cat-ed{display:flex;flex-direction:column;gap:12px}
+.cat-prev{width:132px;height:132px;margin:2px auto 0;filter:drop-shadow(0 8px 18px rgba(15,60,45,.18))}
+.cat-prev svg{width:100%;height:100%;display:block}
+.cat-tools{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+.cat-slots{flex-wrap:nowrap}
+.cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(68px,1fr));gap:8px;max-height:min(40vh,320px);overflow-y:auto;padding:2px}
+.cat-op{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 4px;border:1.5px solid transparent;border-radius:12px;background:var(--sunk);cursor:pointer;font:inherit;font-size:11px;color:var(--muted);transition:border-color .15s,transform .12s}
+.cat-op svg{width:48px;height:48px;display:block}
+.cat-op span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.cat-op.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:700}
+.cat-op:active{transform:scale(.94)}
