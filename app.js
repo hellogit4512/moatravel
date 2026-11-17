@@ -1452,8 +1452,8 @@ function planTab(r) {
       <button class="chip ${!cur ? 'on' : ''}" data-act="plan-day" data-d="0">전체</button>
       ${Array.from({ length: days }, (_, i) => `<button class="chip ${cur === i + 1 ? 'on' : ''}" data-act="plan-day" data-d="${i + 1}"><span class="dot" style="--c:${COLORS[i % COLORS.length]}"></span>${i + 1}일차</button>`).join('')}
     </div>
-    <button class="btn sm pend-btn ${pending.length ? 'has' : ''}" data-act="pending" title="날짜 미정 장소">${I('pin', 15)}미정 <b>${pending.length}</b></button>
-    <button class="btn sm ${showMap ? '' : 'pri'}" data-act="map-toggle" aria-pressed="${showMap}" title="${showMap ? '지도 숨기기' : '지도 보이기'}" aria-label="${showMap ? '지도 끄기' : '지도 켜기'}">${I('map', 15)}<span class="pb-t">${showMap ? '지도 끄기' : '지도 켜기'}</span></button>
+    <button class="btn sm pb-ic pend-btn ${pending.length ? 'has' : ''}" data-act="pending" title="날짜 미정 장소" aria-label="날짜 미정 장소 ${pending.length}곳">${I('pin', 15)}<span class="pb-t">미정</span>${pending.length ? `<b class="pb-n">${pending.length > 99 ? '99+' : pending.length}</b>` : ''}</button>
+    <button class="btn sm pb-ic ${showMap ? '' : 'pri'}" data-act="map-toggle" aria-pressed="${showMap}" title="${showMap ? '지도 숨기기' : '지도 보이기'}" aria-label="${showMap ? '지도 끄기' : '지도 켜기'}">${I('map', 15)}<span class="pb-t">${showMap ? '지도 끄기' : '지도 켜기'}</span></button>
   </div>
   ${wxStrip(r)}
   <div class="places-layout ${showMap ? (isWide() ? 'split' : 'stack') : ''} plan-layout ${cur ? 'one-day' : ''}"><div class="plan-main">

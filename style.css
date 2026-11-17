@@ -808,3 +808,14 @@ th:hover .col-rs::after,.col-rs.on::after{background:var(--accent)}
 .days.enter .day:nth-child(4){animation-delay:.12s}
 .days.enter .day:nth-child(n+5){animation-delay:.16s}
 @keyframes dayIn{from{opacity:0;transform:translateY(12px) scale(.98)}}
+
+/* 일정 상단 바: 미정·지도는 같은 모양의 작은 버튼으로 (모바일은 아이콘 + 개수 배지만) */
+.pend-btn .pb-n{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:99px;background:var(--warm);color:#fff;font-size:11px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+@media (max-width:1023px){
+  .plan-bar{align-items:center}
+  .plan-bar .daychips-c{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 20px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 20px),transparent);padding-right:16px}
+  .plan-bar .chip{height:34px;padding:0 12px}
+  .plan-bar .btn.pb-ic{position:relative;flex:none;width:34px;height:34px;padding:0;border-radius:99px;justify-content:center}
+  .plan-bar .pb-ic .pb-t{display:none}
+  .plan-bar .pend-btn .pb-n{position:absolute;top:-5px;right:-6px;min-width:17px;height:17px;padding:0 4px;font-size:10.5px;box-shadow:0 0 0 2px var(--bg)}
+}
