@@ -141,7 +141,8 @@ const CAT_PARTS = (() => {
   return { coat, face, glass, head, neck, hand, tail };
 })();
 // 꾸미기 창의 칸 순서와 이름
-const catPatList = () => CAT_PAT;
+// 가르마 무늬는 하늘색이 기본이에요
+const catPatList = (ci) => (+ci === 12 ? [CAT_PAT[1], CAT_PAT[0], ...CAT_PAT.slice(2)] : CAT_PAT);
 const CAT_SLOTS = [['s', '친구'], ['c', '털 무늬'], ['p', '무늬 색'], ['e', '표정'], ['g', '얼굴 소품'], ['h', '머리'], ['n', '목'], ['b', '인어 꼬리'], ['d', '모험 도구'], ['t', '배경']];
 let catSeq = 0;
 function logoCat(o = {}) {
