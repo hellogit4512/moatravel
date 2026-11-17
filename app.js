@@ -919,6 +919,7 @@ function notifyChat(r, fresh) {
   $$('[data-k="chat"]').forEach((b) => { b.classList.remove('ping'); void b.offsetWidth; b.classList.add('ping'); });
   if (navigator.vibrate) try { navigator.vibrate(30); } catch (e) { /* noop */ }
 }
+const myLook = (m) => m.cat || { t: Math.max(0, COLORS.indexOf(m.color)) % CAT_TILES.length, e: 1 };
 function chatTab(r) {
   const me = meId(r);
   let html = '', prev = null, prevDay = '';
@@ -930,13 +931,14 @@ function chatTab(r) {
     const w = member(r, m.by), mine = m.by === me;
     if (chatSeen[r.id] && !chatSeen[r.id].has(m.id) && !newMsg.has(m.id)) newMsg.set(m.id, Date.now());
     const fresh = Date.now() - (newMsg.get(m.id) || 0) < 1500;
-    html += `<div class="msg ${mine ? 'me' : ''} ${first ? 'first' : ''} ${fresh ? 'new' : ''}">${mine ? '' : av(w, 38)}<div>${first && !mine ? `<div class="who">${esc(w.name)}</div>` : ''}<div class="bub">${esc(m.text)}</div></div><span class="t">${hm(m.at)}</span></div>`;
+    html += `<div class="msg ${mine ? 'me' : ''} ${first ? 'first' : ''} ${fresh ? 'new' : ''}">${mine ? '' : av(w, 38)}<div>${first && !mine ? `<div class="who">${esc(w.name)}</div>` : ''}${Number.isInteger(m.st) && CAT_STICKERS[m.st] ? `<div class="stk" title="${esc(CAT_STICKERS[m.st][0])}">${catSticker(myLook(w), m.st)}<span>${esc(CAT_STICKERS[m.st][0])}</span></div>` : `<div class="bub">${esc(m.text)}</div>`}</div><span class="t">${hm(m.at)}</span></div>`;
     prev = m;
   });
   const canAsk = shared(r) && window.Notification && Notification.permission === 'default';
   return `<div class="sec"><div><h2>대화</h2><p>정할 것, 떠오른 생각을 가볍게 남겨요. ${shared(r) ? '새 메시지가 오면 알려드려요.' : '함께 보는 여행방으로 열면 실시간으로 주고받아요.'}</p></div>${canAsk ? `<div class="acts"><button class="btn sm" data-act="notif">${I('bell', 15)}알림 받기</button></div>` : ''}</div>
   <div class="card chat"><div class="msgs">${html || empty('chat', '첫 마디를 남겨보세요', '어디 가고 싶은지, 언제가 좋은지부터 이야기해요.')}</div>
-  <form class="composer" data-form="chat"><input type="text" name="t" placeholder="메시지 보내기" autocomplete="off" maxlength="500" aria-label="메시지"><button class="btn pri icon" aria-label="보내기">${I('send')}</button></form></div>`;
+  ${ui.stkOpen ? `<div class="stk-panel" role="menu" aria-label="스티커">${CAT_STICKERS.map(([n], i) => `<button type="button" class="stk-pick" data-act="stk-send" data-i="${i}" aria-label="${esc(n)} 스티커 보내기">${catSticker(myLook(member(r, me)), i)}<span>${esc(n)}</span></button>`).join('')}</div>` : ''}
+  <form class="composer" data-form="chat"><button type="button" class="btn ghost icon stk-btn ${ui.stkOpen ? 'on' : ''}" data-act="stk-open" aria-label="스티커" aria-expanded="${!!ui.stkOpen}" title="스티커">${I('cat', 22, 1.9)}</button><input type="text" name="t" placeholder="메시지 보내기" autocomplete="off" maxlength="500" aria-label="메시지"><button class="btn pri icon" aria-label="보내기">${I('send')}</button></form></div>`;
 }
 
 // ───── 모아둔 곳 ─────
@@ -2539,6 +2541,12 @@ document.addEventListener('click', (ev) => {
     'del-entry': () => removeUndo(r, 'journal', el.dataset.id, '기록을'),
     photo: () => openModal({ title: '사진', body: `<img src="${el.src}" style="width:100%;border-radius:12px" alt="여행 사진">` }),
     'cat-mem': () => catEditor(r, member(r, el.dataset.id)),
+    'stk-open': () => { ui.stkOpen = !ui.stkOpen; render(); if (ui.stkOpen) { const b = $('.msgs'); if (b) b.scrollTop = b.scrollHeight; } },
+    'stk-send': () => {
+      const i = +el.dataset.i, st = CAT_STICKERS[i]; if (!st) return;
+      r.messages.push({ id: uid(), by: meId(r), text: `(스티커) ${st[0]}`, st: i, at: now(), upd: now() });
+      ui.stkOpen = false; touch(r); render(); const b = $('.msgs'); if (b) b.scrollTop = b.scrollHeight;
+    },
     'rename-mem': () => {
       const m = member(r, el.dataset.id);
       openModal({ title: '이름 변경', body: `<label class="field"><span>새 이름</span><input type="text" name="n" required maxlength="12" value="${esc(m.name)}"></label>`, onOk(f) { m.name = f.n.value.trim(); touch(r, m); render(); } });
