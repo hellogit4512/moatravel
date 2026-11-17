@@ -769,8 +769,15 @@ th:hover .col-rs::after,.col-rs.on::after{background:var(--accent)}
 /* PC 일정 탭: 넓은 화면을 다 쓰고, 지도를 크게 */
 @media (min-width:1181px){
   .main:has(.plan-layout.split){max-width:1760px}
-  .places-layout.split.plan-layout{grid-template-columns:minmax(0,1fr) minmax(420px,45%);gap:24px}
-  .places-layout.split.plan-layout.one-day{grid-template-columns:minmax(380px,520px) minmax(0,1fr)}
+  .places-layout.split.plan-layout{grid-template-columns:minmax(300px,1fr) var(--map-w,55%);gap:24px}
+  .places-layout.split.plan-layout.one-day{grid-template-columns:minmax(300px,1fr) var(--map-w,64%)}
   .plan-layout.split .days{grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
-  .plan-map .map-pane{top:68px;height:calc(100vh - 88px);min-height:480px}
+  .plan-map .map-sticky{position:sticky;top:68px}
+  .plan-map .map-pane{position:relative;top:auto;height:calc(100vh - 88px);min-height:480px}
+  .map-vgrip{position:absolute;top:0;bottom:0;left:-20px;width:16px;display:flex;align-items:center;justify-content:center;cursor:ew-resize;touch-action:none;user-select:none;z-index:6;border-radius:8px;outline:none}
+  .map-vgrip i{width:5px;height:44px;border-radius:99px;background:var(--line-2);transition:background .15s,height .15s}
+  .map-vgrip:hover i,.map-vgrip.on i,.map-vgrip:focus-visible i{background:var(--accent);height:72px}
+  .map-vgrip:focus-visible{box-shadow:0 0 0 2px var(--accent-soft)}
+  body.resizing-x{cursor:ew-resize;user-select:none}
+  body.resizing-x .leaflet-container{pointer-events:none}
 }

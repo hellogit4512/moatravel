@@ -722,6 +722,7 @@ function render() {
   $('#app').innerHTML = `<div class="shell ${r ? 'is-room' : 'is-home'}">${side(rt, r)}<div class="content">${topbar(r)}<main class="main" id="main">${r ? roomPage(r, rt.tab) : home()}</main></div>${r ? bnav(rt.tab, r) : ''}</div>`;
   document.body.classList.toggle('is-home', !r);
   if (S.mapH) document.documentElement.style.setProperty('--map-h', S.mapH + 'px');
+  applyMapW();
   // 지도 다시 꽂기
   const slot = $('#map-slot');
   if (slot && r) {
@@ -1549,7 +1550,7 @@ function placeDetail(r, p) {
 }
 const saveMapOff = () => { try { localStorage.setItem('moa.mapOff', ui.mapOff ? '1' : ''); } catch (e) { /* noop */ } };
 function planMap(r) {
-  return `<div class="mapblock plan-map">${ui.mapDay && !ui.planDay ? `<button class="map-day-pill" data-act="map-day" data-d="${ui.mapDay}">${ui.mapDay}일차만 표시 중 · 전체 보기 ${I('x', 13)}</button>` : ''}${isWide() ? '<div class="map-pane"><div id="map-slot"></div></div>' : '<div class="map-mobile"><div id="map-slot"></div></div><div class="map-grip" data-grip role="slider" aria-label="지도 크기 조절 (끌어서 조절)" title="끌어서 지도 크기 조절 · 두 번 누르면 기본"><i></i></div>'}</div>`;
+  return `<div class="mapblock plan-map">${ui.mapDay && !ui.planDay ? `<button class="map-day-pill" data-act="map-day" data-d="${ui.mapDay}">${ui.mapDay}일차만 표시 중 · 전체 보기 ${I('x', 13)}</button>` : ''}${isWide() ? '<div class="map-sticky"><div class="map-pane"><div id="map-slot"></div></div><div class="map-vgrip" data-vgrip tabindex="0" role="separator" aria-orientation="vertical" aria-label="지도 너비 조절 (좌우로 끌거나 화살표 키)" title="좌우로 끌어서 지도 너비 조절 · 두 번 누르면 기본"><i></i></div></div>' : '<div class="map-mobile"><div id="map-slot"></div></div><div class="map-grip" data-grip role="slider" aria-label="지도 크기 조절 (끌어서 조절)" title="끌어서 지도 크기 조절 · 두 번 누르면 기본"><i></i></div>'}</div>`;
 }
 function planText(r) {
   let t = `✈️ ${r.name}\n📍 ${r.dest} · ${range(r)} (${nights(r)})\n`;
@@ -2576,6 +2577,45 @@ applyTheme();
 matchMedia('(prefers-color-scheme:dark)').addEventListener('change', () => { if (S.theme === 'auto') { applyTheme(); render(); } });
 if (/^#(join|s)=/.test(location.hash)) checkJoin(); else render();
 
+// PC 일정 지도 너비: 가운데 손잡이를 좌우로 끌어서 조절 (전체 보기·하루 보기 따로 기억), 두 번 누르면 기본
+const mapWKey = (pl) => (pl.classList.contains('one-day') ? 'one' : 'all');
+function applyMapW() {
+  const pl = $('.plan-layout.split'); if (!pl) return;
+  const w = S.mapW?.[mapWKey(pl)];
+  if (w) pl.style.setProperty('--map-w', w + '%'); else pl.style.removeProperty('--map-w');
+}
+(() => {
+  let st = null;
+  const pct = (pl, mapPx) => { const W = pl.getBoundingClientRect().width; return Math.round(Math.max(30, Math.min(78, ((W - 324) / W) * 100, (mapPx / W) * 100)) * 10) / 10; };
+  const set = (pl, v) => { pl.style.setProperty('--map-w', v + '%'); mapCtl?.resize(); };
+  const keep = (pl, v) => { S.mapW = { ...(S.mapW || {}), [mapWKey(pl)]: v }; save(); };
+  document.addEventListener('pointerdown', (e) => {
+    const g = e.target.closest?.('[data-vgrip]'); if (!g) return;
+    const pl = g.closest('.plan-layout'); if (!pl) return;
+    e.preventDefault(); g.setPointerCapture(e.pointerId);
+    st = { g, pl }; g.classList.add('on'); document.body.classList.add('resizing-x');
+  });
+  document.addEventListener('pointermove', (e) => {
+    if (!st) return;
+    const r = st.pl.getBoundingClientRect();
+    st.cur = pct(st.pl, r.right - e.clientX - 12); set(st.pl, st.cur);
+  });
+  const end = () => { if (!st) return; st.g.classList.remove('on'); document.body.classList.remove('resizing-x'); if (st.cur) keep(st.pl, st.cur); st = null; mapCtl?.resize(); };
+  document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end);
+  document.addEventListener('keydown', (e) => {
+    const g = e.target.closest?.('[data-vgrip]'); if (!g || !['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+    const pl = g.closest('.plan-layout'), map = g.closest('.plan-map'); if (!pl || !map) return;
+    e.preventDefault();
+    const W = pl.getBoundingClientRect().width, now = (map.getBoundingClientRect().width / W) * 100;
+    const v = pct(pl, ((now + (e.key === 'ArrowLeft' ? 5 : -5)) / 100) * W); set(pl, v); keep(pl, v);
+  });
+  document.addEventListener('dblclick', (e) => {
+    const g = e.target.closest?.('[data-vgrip]'); if (!g) return;
+    const pl = g.closest('.plan-layout'); if (!pl) return;
+    if (S.mapW) { delete S.mapW[mapWKey(pl)]; save(); }
+    pl.style.removeProperty('--map-w'); mapCtl?.resize(); toast('지도 너비를 기본으로 돌렸어요');
+  });
+})();
 // 지도 크기: 아래 손잡이를 끌어서 사람마다(기기마다) 조절, 두 번 누르면 기본 크기로
 (() => {
   let st = null;
