@@ -181,7 +181,9 @@ function applyTheme() {
 const room = () => S.rooms[route().id];
 const member = (r, id) => r.members.find((m) => m.id === id) || { id, name: '?', color: '#999' };
 const meId = (r) => S.me[r.id];
-const av = (m, s) => `<span class="av" title="${esc(m.name)}" style="background:${m.color}${s ? `;width:${s}px;height:${s}px;font-size:${Math.round(s * 0.42)}px` : ''}">${esc(m.name.slice(0, 1))}</span>`;
+const av = (m, s) => (m.cat && typeof logoCat === 'function'
+  ? `<span class="av cat-av" title="${esc(m.name)}"${s ? ` style="width:${s}px;height:${s}px"` : ''}>${logoCat(m.cat)}</span>`
+  : `<span class="av" title="${esc(m.name)}" style="background:${m.color}${s ? `;width:${s}px;height:${s}px;font-size:${Math.round(s * 0.42)}px` : ''}">${esc(m.name.slice(0, 1))}</span>`);
 function touch(r, item) { const t = now(); if (item) item.upd = t; r.updatedAt = t; save(); queuePush(r); }
 
 // ───────── 실시간 공유방 (Cloudflare Worker) ─────────
@@ -881,7 +883,7 @@ function roomPage(r, tab) {
     <div class="grow">
       <div class="kicker">${range(r)} · ${nights(r)}</div>
       <h1>${esc(r.name)}</h1>
-      <div class="meta"><span class="avs">${r.members.map((m) => av(m, 24)).join('')}</span><span>${r.members.length}명</span>${syncPill(r)}${me ? `<span class="sep"></span><button class="link" data-act="pick-me" style="color:var(--muted);font-weight:500;text-decoration:none">${esc(me.name)}(으)로 참여 중 <span style="color:var(--accent)">변경</span></button>` : ''}</div>
+      <div class="meta"><span class="avs">${r.members.map((m) => av(m, 24)).join('')}</span><span>${r.members.length}명</span>${syncPill(r)}${me ? `<span class="sep"></span><button class="link" data-act="pick-me" style="color:var(--muted);font-weight:500;text-decoration:none">${esc(me.name)}(으)로 참여 중 <span style="color:var(--accent)">변경</span></button><button class="link cat-me" data-act="cat-mem" data-id="${me.id}">${av(me, 20)}내 고양이 꾸미기</button>` : ''}</div>
     </div>
     <div class="right">
       ${r.demo ? '' : `<div class="dday">${dday(r)}</div>`}
@@ -2146,7 +2148,7 @@ function settingsTab(r) {
 
   <div class="group-title">일행 · ${r.members.length}명</div>
   <div class="group">
-    ${r.members.map((m) => `<div class="item">${av(m, 30)}<b class="grow">${esc(m.name)}${m.id === meId(r) ? ' <span class="tag accent">나</span>' : ''}</b><button class="btn ghost sm" data-act="rename-mem" data-id="${m.id}">이름 변경</button>${r.members.length > 1 ? `<button class="btn ghost sm danger" data-act="del-mem" data-id="${m.id}">내보내기</button>` : ''}</div>`).join('')}
+    ${r.members.map((m) => `<div class="item">${av(m, 30)}<b class="grow">${esc(m.name)}${m.id === meId(r) ? ' <span class="tag accent">나</span>' : ''}</b><button class="btn ghost sm" data-act="cat-mem" data-id="${m.id}">꾸미기</button><button class="btn ghost sm" data-act="rename-mem" data-id="${m.id}">이름 변경</button>${r.members.length > 1 ? `<button class="btn ghost sm danger" data-act="del-mem" data-id="${m.id}">내보내기</button>` : ''}</div>`).join('')}
     <form class="item" data-form="member"><input type="text" name="t" placeholder="일행 이름 추가" maxlength="12" class="grow" aria-label="일행 이름"><button class="btn">추가</button></form>
   </div>
 
@@ -2261,6 +2263,39 @@ function roomModal() {
       S.rooms[r.id] = r; S.me[r.id] = r.members[0].id; save();
       go(`#/r/${r.id}/places`); setTimeout(() => shareModal(r, true), 250);
     },
+  });
+}
+// 내 고양이 꾸미기: 로고 고양이에 털 무늬 · 표정 · 소품을 골라요 (고르는 즉시 미리보기)
+function catEditor(r, m0) {
+  const id = m0.id, base = { c: 0, p: 0, t: Math.max(0, COLORS.indexOf(m0.color)) % CAT_TILES.length, e: 1, g: 0, h: 0, n: 0, d: 0 };
+  const o = { ...base, ...(m0.cat || {}) };
+  let slot = 'c';
+  const f = openModal({
+    title: `${esc(m0.name)}님의 고양이`, ok: '저장',
+    body: `<div class="cat-ed"><div class="cat-prev"></div>
+      <div class="cat-tools"><button type="button" class="btn sm" data-x="rand">${I('refresh', 15)}무작위</button><button type="button" class="btn sm ghost" data-x="reset">처음으로</button>${m0.cat ? '<button type="button" class="btn sm ghost danger" data-x="off">글자 프로필로</button>' : ''}</div>
+      <div class="chips cat-slots" role="tablist"></div><div class="cat-grid"></div></div>`,
+    onOk() {
+      const r1 = room() || r, m = r1.members.find((x) => x.id === id); if (!m) return;
+      m.cat = { ...o }; touch(r1, m); render(); toast('고양이를 바꿨어요');
+    },
+  });
+  const draw = () => {
+    $('.cat-prev', f).innerHTML = logoCat(o);
+    const slots = CAT_SLOTS.filter(([k]) => k !== 'p' || catHasPat(o));
+    if (!slots.some(([k]) => k === slot)) slot = 'c';
+    $('.cat-slots', f).innerHTML = slots.map(([k, n]) => `<button type="button" class="chip ${k === slot ? 'on' : ''}" data-s="${k}">${n}</button>`).join('');
+    $('.cat-grid', f).innerHTML = catOpts(slot).map(([n], i) => `<button type="button" class="cat-op ${+o[slot] === i ? 'on' : ''}" data-i="${i}" title="${esc(n)}" aria-label="${esc(n)}">${logoCat({ ...o, [slot]: i })}<span>${esc(n)}</span></button>`).join('');
+  };
+  draw();
+  f.addEventListener('click', (ev) => {
+    const t = ev.target.closest('[data-s],[data-i],[data-x]'); if (!t) return;
+    if (t.dataset.s) slot = t.dataset.s;
+    else if (t.dataset.i) o[slot] = +t.dataset.i;
+    else if (t.dataset.x === 'rand') CAT_SLOTS.forEach(([k]) => { const L = catOpts(k).length; o[k] = Math.floor(Math.random() * L); });
+    else if (t.dataset.x === 'reset') Object.assign(o, base);
+    else if (t.dataset.x === 'off') { const r1 = room() || r, m = r1.members.find((x) => x.id === id); if (m) { delete m.cat; m.upd = now(); touch(r1, m); } closeModal(); render(); return; }
+    draw();
   });
 }
 function pickMe(r) {
@@ -2503,6 +2538,7 @@ document.addEventListener('click', (ev) => {
     'add-entry': () => entryModal(r),
     'del-entry': () => removeUndo(r, 'journal', el.dataset.id, '기록을'),
     photo: () => openModal({ title: '사진', body: `<img src="${el.src}" style="width:100%;border-radius:12px" alt="여행 사진">` }),
+    'cat-mem': () => catEditor(r, member(r, el.dataset.id)),
     'rename-mem': () => {
       const m = member(r, el.dataset.id);
       openModal({ title: '이름 변경', body: `<label class="field"><span>새 이름</span><input type="text" name="n" required maxlength="12" value="${esc(m.name)}"></label>`, onOk(f) { m.name = f.n.value.trim(); touch(r, m); render(); } });
