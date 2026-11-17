@@ -101,7 +101,7 @@ const I = (n, s = 18, sw = 1.7) => `<svg class="i" width="${s}" height="${s}" vi
 
 // ───────── 상태 ─────────
 let S = load();
-const ui = { mapOff: (() => { try { return !!localStorage.getItem('moa.mapOff'); } catch (e) { return false; } })(), moneyView: (() => { try { return localStorage.getItem('moa.moneyView') || 'list'; } catch (e) { return 'list'; } })(), planView: (() => { try { return localStorage.getItem('moa.planView') || 'cards'; } catch (e) { return 'cards'; } })(), planDay: 0, planMap: true, filter: 'all', sort: 'new', view: 'map', openCmt: {}, q: '' };
+const ui = { mapOff: (() => { try { return !!localStorage.getItem('moa.mapOff'); } catch (e) { return false; } })(), moneyView: (() => { try { return localStorage.getItem('moa.moneyView') || 'list'; } catch (e) { return 'list'; } })(), planView: (() => { try { return localStorage.getItem('moa.planView') || 'cards'; } catch (e) { return 'cards'; } })(), planDays: [], planMap: true, filter: 'all', sort: 'new', view: 'map', openCmt: {}, q: '' };
 const failed = {};
 let mapCtl = null;
 
@@ -450,8 +450,10 @@ function routeUrl(r, items) {
   return `https://www.google.com/maps/dir/?api=1&origin=${enc(loc(items[0]))}&destination=${enc(loc(items[items.length - 1]))}${w ? '&waypoints=' + enc(w) : ''}`;
 }
 // 지도 위젯 — 렌더 사이에도 살아남도록 DOM 노드를 보관했다가 다시 꽂는다
+// 지도에 보일 일차: 없음(전체) · 숫자 하나 · 여러 개(배열)
+const inDays = (day, d) => !day || (Array.isArray(day) ? day.includes(d) : d === day);
 function pinData(r, day) {
-  return r.places.filter((p) => p.lat && (!day || p.day === day)).map((p) => {
+  return r.places.filter((p) => p.lat && inDays(day, p.day)).map((p) => {
     const day = p.day ? r.places.filter((x) => x.day === p.day).sort(sortPlan).indexOf(p) + 1 : 0;
     return { p, color: p.day ? COLORS[(p.day - 1) % COLORS.length] : cat(p.cat).c, label: day ? String(day) : '', dim: !p.day };
   });
@@ -459,7 +461,7 @@ function pinData(r, day) {
 function lines(r, day) {
   const out = [];
   for (let d = 1; d <= dayCount(r); d++) {
-    if (day && d !== day) continue;
+    if (day && !inDays(day, d)) continue;
     const pts = r.places.filter((p) => p.day === d && p.lat).sort(sortPlan);
     if (pts.length > 1) out.push({ color: COLORS[(d - 1) % COLORS.length], pts });
   }
@@ -478,7 +480,7 @@ function createMap(r) {
   const want = provider(r);
   const ctl = { el, roomId: r.id, pv: want, kind: null, r, impl: null, fitted: false, day: null, sel: null,
     update(nr) { this.r = nr; this.impl?.draw(nr, false, this.day); if (this.sel) this.impl?.hl(this.sel, true); },
-    setDay(d) { d = d || null; if (d === this.day) return; this.day = d; this.impl?.draw(this.r, true, d); if (this.sel) this.impl?.hl(this.sel, true); },
+    setDay(d) { d = (Array.isArray(d) && !d.length) ? null : d || null; if (String(d) === String(this.day)) return; this.day = d; this.impl?.draw(this.r, true, d); if (this.sel) this.impl?.hl(this.sel, true); },
     select(id) { if (this.sel && this.sel !== id) this.impl?.hl(this.sel, false); this.sel = id; if (id) { this.impl?.hl(id, true); this.impl?.focus(id); } },
     focus(id) { this.impl?.focus(id); },
     hl(id, on) { this.impl?.hl(id, on); },
@@ -750,7 +752,7 @@ function render() {
   hscrollRestore(hs);
   glidePlay(gl);
   // 화면이 바뀔 때만(탭·일차) 부드럽게 등장 — 내용 수정으로 다시 그릴 때는 그대로
-  const vk = `${rt.page}:${rt.id || ''}:${rt.tab || ''}`, dk = rt.tab === 'plan' ? `${vk}:${ui.planDay}:${ui.planView}` : '';
+  const vk = `${rt.page}:${rt.id || ''}:${rt.tab || ''}`, dk = rt.tab === 'plan' ? `${vk}:${ui.planDays.join(',')}:${ui.planView}` : '';
   if (render.vk !== undefined && render.vk !== vk) $('#main')?.classList.add('enter');
   else if (dk && render.dk !== undefined && render.dk !== dk) $('.days')?.classList.add('enter');
   render.vk = vk; render.dk = dk;
@@ -759,7 +761,7 @@ function render() {
   if (slot && r) {
     if (mapCtl && !mapCtl.dead && mapCtl.roomId === r.id && mapCtl.pv === provider(r)) { slot.replaceWith(mapCtl.el); mapCtl.update(r); mapCtl.resize(); }
     else { mapCtl?.destroy(); mapCtl = createMap(r); slot.replaceWith(mapCtl.el); }
-    mapCtl.setDay(rt.tab === 'plan' ? ui.planDay || ui.mapDay || null : rt.tab === 'today' ? todayDay(r) : null);
+    mapCtl.setDay(rt.tab === 'plan' ? (ui.planDays.length ? ui.planDays : ui.mapDay || null) : rt.tab === 'today' ? todayDay(r) : null);
     if (mapCtl.kind) $('.map-src')?.replaceChildren(document.createTextNode(PNAME[mapCtl.kind]));
   }
   if (r && rt.tab === 'chat') { const el = $('.msgs'); if (el) el.scrollTop = el.scrollHeight; markSeen(r); }
@@ -1465,32 +1467,33 @@ function planTab(r) {
   if (ui.planView === 'table') return planSheet(r);
   const days = dayCount(r), pending = dayItems(r, 0);
   const lock = !!r.confirmed, planned = r.places.filter((p) => p.day), visited = planned.filter((p) => p.visited).length;
-  const cur = ui.planDay > days ? 0 : ui.planDay, showMap = !ui.mapOff;
-  const dayList = cur ? [cur] : Array.from({ length: days }, (_, i) => i + 1);
+  // 고른 일차만 보여줘요 (여러 개 가능). 아무것도 안 고르면 전체
+  const picked = ui.planDays.filter((d) => d <= days), cur = picked.length, showMap = !ui.mapOff;
+  const dayList = cur ? picked : Array.from({ length: days }, (_, i) => i + 1);
   return `<div class="sec"><div><h2>우리 일정</h2><p>${lock ? '확정된 일정이에요. 다녀온 곳은 체크해 보세요.' : '날짜마다 갈 곳을 넣고, 순서와 시간을 맞춰요.'}</p></div>
     <div class="acts">${planViewSeg()}<button class="btn ghost" data-act="xl-out" title="엑셀로 받기">${I('down2', 16)}엑셀</button><button class="btn" data-act="copy-plan">${I('copy', 16)}단체톡용 복사</button>${lock ? '' : `<button class="btn pri" data-act="confirm-plan" ${planned.length ? '' : 'disabled style="opacity:.5"'}>${I('check', 16, 2.2)}일정 확정</button>`}</div></div>
   ${lock ? `<div class="locked">${I('check', 18, 2.2)}<span><b>일정 확정</b> · ${esc(member(r, r.confirmed.by).name)}님이 ${timeAgo(r.confirmed.at)} 확정했어요</span><span class="faint">다녀온 곳 ${visited}/${planned.length}</span><span class="sp"></span><button class="btn sm" data-act="reopen-plan">다시 열기</button></div>` : ''}
   <div class="plan-bar">
     <div class="chips daychips-c">
       <button class="chip ${!cur ? 'on' : ''}" data-act="plan-day" data-d="0">전체</button>
-      ${Array.from({ length: days }, (_, i) => `<button class="chip ${cur === i + 1 ? 'on' : ''}" data-act="plan-day" data-d="${i + 1}"><span class="dot" style="--c:${COLORS[i % COLORS.length]}"></span>${i + 1}일차</button>`).join('')}
+      ${Array.from({ length: days }, (_, i) => `<button class="chip ${picked.includes(i + 1) ? 'on' : ''}" aria-pressed="${picked.includes(i + 1)}" data-act="plan-day" data-d="${i + 1}"><span class="dot" style="--c:${COLORS[i % COLORS.length]}"></span>${i + 1}일차</button>`).join('')}
     </div>
     <button class="btn sm pb-ic pend-btn ${pending.length ? 'has' : ''}" data-act="pending" title="날짜 미정 장소" aria-label="날짜 미정 장소 ${pending.length}곳">${I('pin', 15)}<span class="pb-t">미정</span>${pending.length ? `<b class="pb-n">${pending.length > 99 ? '99+' : pending.length}</b>` : ''}</button>
     <button class="btn sm pb-ic ${showMap ? '' : 'pri'}" data-act="map-toggle" aria-pressed="${showMap}" title="${showMap ? '지도 숨기기' : '지도 보이기'}" aria-label="${showMap ? '지도 끄기' : '지도 켜기'}">${I('map', 15)}<span class="pb-t">${showMap ? '지도 끄기' : '지도 켜기'}</span></button>
   </div>
   ${wxStrip(r)}
   <div class="places-layout ${showMap ? (isWide() ? 'split' : 'stack') : ''} plan-layout ${cur ? 'one-day' : ''}"><div class="plan-main">
-  <div class="days ${cur ? 'single' : ''}">
+  <div class="days ${cur === 1 ? 'single' : ''}">
   ${dayList.map((d) => {
     const items = dayItems(r, d), col = COLORS[(d - 1) % COLORS.length];
     const md = !cur && ui.mapDay === d;
     return `<section class="day ${md ? 'on' : ''} ${!cur && ui.mapDay && !md ? 'dim' : ''}" data-drop="${d}" id="day-${d}" ${cur ? '' : `data-act="map-day" data-d="${d}" title="눌러서 지도에 ${d}일차만 표시"`}>
       <div class="day-head"><span class="day-pick"><span class="day-no" style="color:${col}">${d}일차</span><span class="day-date">${dayLabel(r, d)}</span>${md ? `<span class="tag accent" style="font-size:11px">${I('map', 11)} 지도에 표시 중</span>` : ''}</span><span class="sp"></span>
         <button class="day-spent ${daySpent(r, d) ? '' : 'zero'}" data-act="add-exp" data-d="${d}" title="${d}일차 지출 추가">${I('wallet', 14)}${daySpent(r, d) ? won(daySpent(r, d)) : '지출'}<span class="plus">＋</span></button>
-        ${items.length > 1 ? `<a class="btn ghost sm" href="${esc(routeUrl(r, items))}" target="_blank" rel="noopener" title="${PNAME[provider(r)]} 경로">${I('route', 16)}경로</a>` : ''}</div>
+        ${items.length > 1 ? `<a class="btn ghost sm" href="${esc(routeUrl(r, items))}" target="_blank" rel="noopener" title="${PNAME[provider(r)]} 경로">${I('route', 16)}<span class="bt">경로</span></a>` : ''}</div>
       ${items.length ? `<ol class="stops">${items.map((p, j) => `<li class="stop ${p.visited ? 'visited' : ''} ${ui.sel === p.id ? 'sel' : ''}" data-pid="${p.id}" ${lock ? '' : `draggable="true" data-drag="${p.id}"`} style="--c:${col}">
         <span class="stop-no">${j + 1}</span>
-        <div class="grow"><button type="button" class="stop-name" data-act="place-detail" data-id="${p.id}">${catIc(cat(p.cat))}${esc(p.name)}${p.lat ? '' : '<span class="faint" style="font-size:11px;font-weight:500">위치 없음</span>'}</button>
+        <div class="grow"><button type="button" class="stop-name" data-act="place-detail" data-id="${p.id}" title="${esc(p.name)}">${catIc(cat(p.cat))}<span class="stop-t">${esc(p.name)}</span>${p.lat ? '' : '<span class="faint" style="font-size:11px;font-weight:500">위치 없음</span>'}</button>
           <div class="stop-sub"><input type="time" value="${p.time || ''}" data-change="time" data-id="${p.id}" aria-label="${esc(p.name)} 시간" ${lock ? 'disabled' : ''}>${p.hearts.length ? `<span class="faint" style="font-size:12px">♥ ${p.hearts.length}</span>` : ''}${p.memo ? `<span class="faint stop-memo">${esc(p.memo)}</span>` : ''}<button class="stop-exp ${placeSpent(r, p.id) ? 'has' : ''}" data-act="add-exp" data-d="${d}" data-pid="${p.id}" title="${esc(p.name)}에서 쓴 돈 기록">${placeSpent(r, p.id) ? won(placeSpent(r, p.id)) : '＋ 지출'}</button></div></div>
         ${lock ? `<button class="visit ${p.visited ? 'on' : ''}" data-act="visit" data-id="${p.id}" aria-pressed="${!!p.visited}" aria-label="${esc(p.name)} 다녀왔어요" title="다녀왔어요">${I('check', 15, 2.6)}</button>`
           : `<div class="stop-ctrl"><button data-act="visit" data-id="${p.id}" aria-label="다녀왔어요 표시" title="다녀왔어요">${I('check', 16)}</button><button data-act="move" data-id="${p.id}" data-dir="-1" aria-label="위로">${I('up', 16)}</button><button data-act="move" data-id="${p.id}" data-dir="1" aria-label="아래로">${I('down', 16)}</button><button data-act="set-day" data-id="${p.id}" data-d="0" aria-label="일정에서 빼기" title="미정으로 빼기">${I('x', 16)}</button></div>`}
@@ -1507,7 +1510,7 @@ function pendingDrawer(r0, day) {
   // 서랍은 한 번만 열고, 날짜 선택·검색·넣기는 목록만 다시 그려요 (입력 칸·애니메이션 유지)
   const R = () => room() || r0;
   const n = dayCount(R()), lock = !!R().confirmed;
-  ui.drawDay = Math.min(n, day || ui.drawDay || ui.planDay || 1);
+  ui.drawDay = Math.min(n, day || ui.drawDay || ui.planDays[0] || 1);
   const f = openModal({
     title: `날짜 미정 장소 <span class="faint pend-count" style="font-weight:500"></span>`, cls: 'drawer', raw: true,
     body: `<div class="modal-b drawer-b">
@@ -1580,7 +1583,7 @@ function placeDetail(r, p) {
 }
 const saveMapOff = () => { try { localStorage.setItem('moa.mapOff', ui.mapOff ? '1' : ''); } catch (e) { /* noop */ } };
 function planMap(r) {
-  return `<div class="mapblock plan-map">${ui.mapDay && !ui.planDay ? `<button class="map-day-pill" data-act="map-day" data-d="${ui.mapDay}">${ui.mapDay}일차만 표시 중 · 전체 보기 ${I('x', 13)}</button>` : ''}${isWide() ? '<div class="map-sticky"><div class="map-pane"><div id="map-slot"></div></div><div class="map-vgrip" data-vgrip tabindex="0" role="separator" aria-orientation="vertical" aria-label="지도 너비 조절 (좌우로 끌거나 화살표 키)" title="좌우로 끌어서 지도 너비 조절 · 두 번 누르면 기본"><i></i></div></div>' : '<div class="map-mobile"><div id="map-slot"></div></div><div class="map-grip" data-grip role="slider" aria-label="지도 크기 조절 (끌어서 조절)" title="끌어서 지도 크기 조절 · 두 번 누르면 기본"><i></i></div>'}</div>`;
+  return `<div class="mapblock plan-map">${ui.mapDay && !ui.planDays.length ? `<button class="map-day-pill" data-act="map-day" data-d="${ui.mapDay}">${ui.mapDay}일차만 표시 중 · 전체 보기 ${I('x', 13)}</button>` : ''}${isWide() ? '<div class="map-sticky"><div class="map-pane"><div id="map-slot"></div></div><div class="map-vgrip" data-vgrip tabindex="0" role="separator" aria-orientation="vertical" aria-label="지도 너비 조절 (좌우로 끌거나 화살표 키)" title="좌우로 끌어서 지도 너비 조절 · 두 번 누르면 기본"><i></i></div></div>' : '<div class="map-mobile"><div id="map-slot"></div></div><div class="map-grip" data-grip role="slider" aria-label="지도 크기 조절 (끌어서 조절)" title="끌어서 지도 크기 조절 · 두 번 누르면 기본"><i></i></div>'}</div>`;
 }
 function planText(r) {
   let t = `✈️ ${r.name}\n📍 ${r.dest} · ${range(r)} (${nights(r)})\n`;
@@ -2413,13 +2416,16 @@ document.addEventListener('click', (ev) => {
       if (!r || ev.target.closest('input,textarea,select,form')) return;
       const p = P(el.dataset.id); if (!p) return;
       if (!p.lat) { selPlace(p.id, { focus: false }); return toast('위치 정보가 없는 장소예요'); }
-      if (route().tab === 'plan' && ui.planDay && ui.planDay !== p.day) { ui.planDay = p.day || 0; render(); }
+      if (route().tab === 'plan' && ui.planDays.length && !ui.planDays.includes(p.day)) { ui.planDays = p.day ? [...ui.planDays, p.day].sort((a, b) => a - b) : []; render(); }
       if (route().tab === 'plan' && !ui.planMap && !isWide()) { ui.planMap = true; render(); }
       if (route().tab === 'places' && !isWide() && ui.view !== 'map') { ui.view = 'map'; render(); }
       selPlace(p.id);
     },
     'plan-day': () => {
-      ui.planDay = +el.dataset.d; ui.mapDay = 0; render();
+      // 전체: 모두 보기 / 일차: 눌러서 켜고 끄기 (모두 꺼지면 다시 전체)
+      const d = +el.dataset.d, set = new Set(ui.planDays);
+      if (!d) set.clear(); else if (set.has(d)) set.delete(d); else set.add(d);
+      ui.planDays = [...set].sort((a, b) => a - b); ui.mapDay = 0; render();
       // 지금 위치는 그대로 두고, 일정 목록 윗부분이 상단 바 밑에 가려졌을 때만 그만큼 올려요
       const list = $('.days'), bar = $('.plan-bar');
       if (list && bar) { const gap = list.getBoundingClientRect().top - bar.getBoundingClientRect().bottom - 8; if (gap < 0) scrollBy({ top: gap, behavior: calm() ? 'auto' : 'smooth' }); }
@@ -2626,7 +2632,8 @@ function hscrollRestore(m) {
 const GLIDE = ['.bnav', '.side .nav', '.seg', '.daychips-c'];
 const calm = () => matchMedia('(prefers-reduced-motion:reduce)').matches;
 function glideBox(g) {
-  const b = g.querySelector(':scope > .on'); if (!b) return null;
+  const ons = g.querySelectorAll(':scope > .on'); if (ons.length !== 1) return null;
+  const b = ons[0];
   const gr = g.getBoundingClientRect(), ox = g.scrollLeft - g.clientLeft - gr.left, oy = g.scrollTop - g.clientTop - gr.top;
   if (g.matches('.bnav')) { const br = b.getBoundingClientRect(), ir = (b.querySelector('.i') || b).getBoundingClientRect(), w = 58, h = 32; return { x: br.left + (br.width - w) / 2 + ox, y: ir.top + (ir.height - h) / 2 + oy, w, h }; }
   const br = b.getBoundingClientRect();

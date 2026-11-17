@@ -744,7 +744,6 @@ th:hover .col-rs::after,.col-rs.on::after{background:var(--accent)}
 /* 일정 카드: 칸이 좁아도 깨지지 않게 */
 .stop{grid-template-columns:var(--no,22px) minmax(0,1fr) auto}
 .stop>.grow{min-width:0}
-.stop-name{overflow-wrap:anywhere}
 .stop-sub{flex-wrap:wrap;row-gap:4px;min-width:0}
 .stop-memo{flex:1 1 80px;min-width:0;max-width:none}
 /* 마우스가 있는 화면: 순서 버튼은 올렸을 때만 위에 떠서, 평소엔 이름 칸을 좁히지 않아요 */
@@ -828,3 +827,13 @@ th:hover .col-rs::after,.col-rs.on::after{background:var(--accent)}
 .modal .cic{width:28px;height:28px;border-radius:8px}
 .chip .cic{width:22px;height:22px;border-radius:7px}
 .stop-name .cic,.pend-name .cic{width:22px;height:22px;border-radius:7px}
+
+/* 일정 장소 이름: 지도를 넓혀 칸이 좁아져도 한 줄, 넘치면 … */
+.stop-name{min-width:0;flex-wrap:nowrap;white-space:nowrap}
+.stop-name .stop-t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stop-name>.faint{flex:none}
+/* 일차 제목 줄도 한 줄: 카드가 좁으면 경로 버튼은 아이콘만 */
+.day{container-type:inline-size}
+.day-head{flex-wrap:nowrap}
+.day-head .day-pick{min-width:0;overflow:hidden}
+@container (max-width:360px){.day-head .btn .bt{display:none}.day-head .btn{width:32px;padding:0}}
