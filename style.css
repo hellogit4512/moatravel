@@ -854,3 +854,10 @@ th:hover .col-rs::after,.col-rs.on::after{background:var(--accent)}
 .cat-op span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .cat-op.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:700}
 .cat-op:active{transform:scale(.94)}
+
+/* 일행 고양이: 여행 머리글에 크게, 눌러서 꾸미기 */
+.crew{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.crew-m{border:0;background:none;padding:0;cursor:pointer;line-height:0;border-radius:30%;transition:transform .18s cubic-bezier(.34,1.5,.5,1)}
+.crew-m:hover,.crew-m:focus-visible{transform:translateY(-3px) rotate(-4deg)}
+.crew-m .av{box-shadow:0 2px 6px rgba(15,60,45,.14)}
+.msg .av.cat-av,.r .av.cat-av{box-shadow:0 2px 6px rgba(15,60,45,.12)}

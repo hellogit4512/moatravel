@@ -870,7 +870,7 @@ function tripCard(x) {
     <div class="trip-body">
       <h3>${esc(x.name)}</h3>
       <div class="meta">${range(x)} · ${nights(x)}</div>
-      <div class="row"><span class="avs">${x.members.slice(0, 5).map((m) => av(m, 24)).join('')}</span><span class="sp"></span><span class="faint" style="font-size:12px">장소 ${x.places.length}곳 · ${timeAgo(x.updatedAt)}</span></div>
+      <div class="row"><span class="avs">${x.members.slice(0, 5).map((m) => av(m, 30)).join('')}</span><span class="sp"></span><span class="faint" style="font-size:12px">장소 ${x.places.length}곳 · ${timeAgo(x.updatedAt)}</span></div>
     </div></button>`;
 }
 
@@ -883,7 +883,7 @@ function roomPage(r, tab) {
     <div class="grow">
       <div class="kicker">${range(r)} · ${nights(r)}</div>
       <h1>${esc(r.name)}</h1>
-      <div class="meta"><span class="avs">${r.members.map((m) => av(m, 24)).join('')}</span><span>${r.members.length}명</span>${syncPill(r)}${me ? `<span class="sep"></span><button class="link" data-act="pick-me" style="color:var(--muted);font-weight:500;text-decoration:none">${esc(me.name)}(으)로 참여 중 <span style="color:var(--accent)">변경</span></button><button class="link cat-me" data-act="cat-mem" data-id="${me.id}">${av(me, 20)}내 고양이 꾸미기</button>` : ''}</div>
+      <div class="meta"><span class="crew">${r.members.map((m) => `<button type="button" class="crew-m" data-act="cat-mem" data-id="${m.id}" title="${esc(m.name)} · 고양이 꾸미기">${av(m, 36)}</button>`).join('')}</span><span>${r.members.length}명</span>${syncPill(r)}${me ? `<span class="sep"></span><button class="link" data-act="pick-me" style="color:var(--muted);font-weight:500;text-decoration:none">${esc(me.name)}(으)로 참여 중 <span style="color:var(--accent)">변경</span></button><button class="link cat-me" data-act="cat-mem" data-id="${me.id}">${av(me, 20)}내 고양이 꾸미기</button>` : ''}</div>
     </div>
     <div class="right">
       ${r.demo ? '' : `<div class="dday">${dday(r)}</div>`}
@@ -930,7 +930,7 @@ function chatTab(r) {
     const w = member(r, m.by), mine = m.by === me;
     if (chatSeen[r.id] && !chatSeen[r.id].has(m.id) && !newMsg.has(m.id)) newMsg.set(m.id, Date.now());
     const fresh = Date.now() - (newMsg.get(m.id) || 0) < 1500;
-    html += `<div class="msg ${mine ? 'me' : ''} ${first ? 'first' : ''} ${fresh ? 'new' : ''}">${mine ? '' : av(w, 30)}<div>${first && !mine ? `<div class="who">${esc(w.name)}</div>` : ''}<div class="bub">${esc(m.text)}</div></div><span class="t">${hm(m.at)}</span></div>`;
+    html += `<div class="msg ${mine ? 'me' : ''} ${first ? 'first' : ''} ${fresh ? 'new' : ''}">${mine ? '' : av(w, 38)}<div>${first && !mine ? `<div class="who">${esc(w.name)}</div>` : ''}<div class="bub">${esc(m.text)}</div></div><span class="t">${hm(m.at)}</span></div>`;
     prev = m;
   });
   const canAsk = shared(r) && window.Notification && Notification.permission === 'default';
@@ -976,7 +976,7 @@ function placeCard(r, p) {
   const c = cat(p.cat), by = member(r, p.by), me = meId(r), on = p.hearts.includes(me), open = ui.openCmt[p.id];
   const days = dayCount(r);
   return `<article class="place ${ui.sel === p.id ? 'sel' : ''}" data-act="sel-place" data-id="${p.id}" data-pid="${p.id}" data-s="${esc(`${p.name} ${p.addr || ''} ${p.memo || ''} ${by.name}`.toLowerCase())}">
-    <div class="place-meta">${catIc(c)}<span>${c.n}</span><span>·</span>${av(by, 18)}<span>${esc(by.name)}</span>${p.day ? `<span class="sp"></span>${p.visited ? '<span class="tag">다녀옴</span>' : ''}<span class="tag accent">${p.day}일차${p.time ? ' ' + p.time : ''}</span>` : ''}</div>
+    <div class="place-meta">${catIc(c)}<span>${c.n}</span><span>·</span>${av(by, 24)}<span>${esc(by.name)}</span>${p.day ? `<span class="sp"></span>${p.visited ? '<span class="tag">다녀옴</span>' : ''}<span class="tag accent">${p.day}일차${p.time ? ' ' + p.time : ''}</span>` : ''}</div>
     <h3 class="place-name">${esc(p.name)}</h3>
     ${p.addr ? `<div class="place-addr">${esc(p.addr)}</div>` : ''}
     ${p.memo ? `<p class="place-memo">${esc(p.memo)}</p>` : ''}
@@ -1650,10 +1650,10 @@ function moneyTab(r) {
   <div class="two ${ui.moneyView === 'table' ? 'one' : ''}">
     <div>
       <div class="sec"><div><h2>이렇게 보내면 끝</h2><p>송금 횟수가 가장 적게 계산했어요.</p></div>${tx.length ? `<div class="acts"><button class="btn sm" data-act="copy-settle">${I('copy', 15)}복사</button></div>` : ''}</div>
-      <div class="card rows">${tx.length ? tx.map((t) => `<div class="r">${av(member(r, t.from), 28)}<b>${esc(member(r, t.from).name)}</b><span class="arrow">→</span>${av(member(r, t.to), 28)}<b class="grow">${esc(member(r, t.to).name)}</b><span class="amt">${won(t.amt)}</span></div>`).join('') : '<div class="r muted">모두 정산 완료! 보낼 돈이 없어요.</div>'}</div>
+      <div class="card rows">${tx.length ? tx.map((t) => `<div class="r">${av(member(r, t.from), 34)}<b>${esc(member(r, t.from).name)}</b><span class="arrow">→</span>${av(member(r, t.to), 34)}<b class="grow">${esc(member(r, t.to).name)}</b><span class="amt">${won(t.amt)}</span></div>`).join('') : '<div class="r muted">모두 정산 완료! 보낼 돈이 없어요.</div>'}</div>
       <div class="sec"><div><h2>사람별</h2></div></div>
       <div class="card rows">${r.members.map((m) => { const paid = r.expenses.filter((e) => e.payer === m.id).reduce((s, e) => s + e.amount, 0); const b = bal[m.id] || 0;
-        return `<div class="r">${av(m, 28)}<div class="grow"><b>${esc(m.name)}</b><div class="faint" style="font-size:12px">낸 돈 ${won(paid)} · 내 몫 ${won(paid - b)}</div></div><span class="amt ${b > 0.5 ? 'pos' : b < -0.5 ? 'neg' : 'faint'}">${b > 0.5 ? '받을 돈 ' : b < -0.5 ? '보낼 돈 ' : ''}${won(Math.abs(b))}</span></div>`; }).join('')}</div>
+        return `<div class="r">${av(m, 40)}<div class="grow"><b>${esc(m.name)}</b><div class="faint" style="font-size:12px">낸 돈 ${won(paid)} · 내 몫 ${won(paid - b)}</div></div><span class="amt ${b > 0.5 ? 'pos' : b < -0.5 ? 'neg' : 'faint'}">${b > 0.5 ? '받을 돈 ' : b < -0.5 ? '보낼 돈 ' : ''}${won(Math.abs(b))}</span></div>`; }).join('')}</div>
     </div>
     <div ${ui.moneyView === 'table' ? 'hidden' : ''}>
       <div class="sec"><div><h2>지출 내역</h2><p>${r.expenses.length}건 · 날짜별로 모았어요 · 눌러서 수정</p></div><div class="acts">${moneyViewSeg()}</div></div>
@@ -2148,7 +2148,7 @@ function settingsTab(r) {
 
   <div class="group-title">일행 · ${r.members.length}명</div>
   <div class="group">
-    ${r.members.map((m) => `<div class="item">${av(m, 30)}<b class="grow">${esc(m.name)}${m.id === meId(r) ? ' <span class="tag accent">나</span>' : ''}</b><button class="btn ghost sm" data-act="cat-mem" data-id="${m.id}">꾸미기</button><button class="btn ghost sm" data-act="rename-mem" data-id="${m.id}">이름 변경</button>${r.members.length > 1 ? `<button class="btn ghost sm danger" data-act="del-mem" data-id="${m.id}">내보내기</button>` : ''}</div>`).join('')}
+    ${r.members.map((m) => `<div class="item">${av(m, 44)}<b class="grow">${esc(m.name)}${m.id === meId(r) ? ' <span class="tag accent">나</span>' : ''}</b><button class="btn ghost sm" data-act="cat-mem" data-id="${m.id}">꾸미기</button><button class="btn ghost sm" data-act="rename-mem" data-id="${m.id}">이름 변경</button>${r.members.length > 1 ? `<button class="btn ghost sm danger" data-act="del-mem" data-id="${m.id}">내보내기</button>` : ''}</div>`).join('')}
     <form class="item" data-form="member"><input type="text" name="t" placeholder="일행 이름 추가" maxlength="12" class="grow" aria-label="일행 이름"><button class="btn">추가</button></form>
   </div>
 
@@ -2285,14 +2285,14 @@ function catEditor(r, m0) {
     const slots = CAT_SLOTS.filter(([k]) => k !== 'p' || catHasPat(o));
     if (!slots.some(([k]) => k === slot)) slot = 'c';
     $('.cat-slots', f).innerHTML = slots.map(([k, n]) => `<button type="button" class="chip ${k === slot ? 'on' : ''}" data-s="${k}">${n}</button>`).join('');
-    $('.cat-grid', f).innerHTML = catOpts(slot).map(([n], i) => `<button type="button" class="cat-op ${+o[slot] === i ? 'on' : ''}" data-i="${i}" title="${esc(n)}" aria-label="${esc(n)}">${logoCat({ ...o, [slot]: i })}<span>${esc(n)}</span></button>`).join('');
+    $('.cat-grid', f).innerHTML = catOpts(slot, o).map(([n], i) => `<button type="button" class="cat-op ${+o[slot] === i ? 'on' : ''}" data-i="${i}" title="${esc(n)}" aria-label="${esc(n)}">${logoCat({ ...o, [slot]: i })}<span>${esc(n)}</span></button>`).join('');
   };
   draw();
   f.addEventListener('click', (ev) => {
     const t = ev.target.closest('[data-s],[data-i],[data-x]'); if (!t) return;
     if (t.dataset.s) slot = t.dataset.s;
     else if (t.dataset.i) o[slot] = +t.dataset.i;
-    else if (t.dataset.x === 'rand') CAT_SLOTS.forEach(([k]) => { const L = catOpts(k).length; o[k] = Math.floor(Math.random() * L); });
+    else if (t.dataset.x === 'rand') CAT_SLOTS.forEach(([k]) => { const L = catOpts(k, o).length; o[k] = Math.floor(Math.random() * L); });
     else if (t.dataset.x === 'reset') Object.assign(o, base);
     else if (t.dataset.x === 'off') { const r1 = room() || r, m = r1.members.find((x) => x.id === id); if (m) { delete m.cat; m.upd = now(); touch(r1, m); } closeModal(); render(); return; }
     draw();
@@ -2303,7 +2303,7 @@ function pickMe(r) {
   const form = openModal({
     title: '나는 누구인가요?',
     body: `<p class="muted" style="margin:0">${esc(r.name)}에서 하트와 의견이 이 이름으로 남아요.</p>
-      <div class="menu" style="padding:0">${r.members.map((m) => `<button type="button" data-m="${m.id}">${av(m, 30)}<span>${esc(m.name)}</span></button>`).join('')}</div>
+      <div class="menu" style="padding:0">${r.members.map((m) => `<button type="button" data-m="${m.id}">${av(m, 40)}<span>${esc(m.name)}</span></button>`).join('')}</div>
       <label class="field"><span>목록에 없다면</span><div class="row"><input type="text" name="n" placeholder="내 이름" maxlength="12" class="grow"><button class="btn pri">참여하기</button></div></label>`,
   });
   $$('[data-m]', form).forEach((b) => b.addEventListener('click', () => { S.me[r.id] = b.dataset.m; save(); closeModal(); render(); }));
