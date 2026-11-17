@@ -30,7 +30,7 @@ const CAT_PARTS = (() => {
     ['삼색이', R(C.white) + E(24, 24, 9, 7, C.cheese, -20) + E(44, 40, 8, 6, C.black, 15) + E(20, 46, 6, 4.5, C.black) + E(42, 20, 5, 4, C.cheese)],
     ['젖소', (pc) => R(C.white) + E(28, 22, 6, 5, pc, 20) + E(44, 42, 7, 5, pc) + E(18, 44, 4.5, 3.5, pc) + E(41, 14, 3, 2.6, pc)],
     ['턱시도', (pc) => R(pc) + `<path d="M24 54Q22 36 32 30Q44 34 46 54z" fill="${C.white}"/>`, (p) => [0, 2, 4].includes(p)],
-    ['하치와레', (pc) => R(C.white) + `<path d="M0 0H64V31.5H49.5L38 17.4L26.5 31.5H0z" fill="${pc}"/>`],
+    ['가르마', (pc) => R(C.white) + `<path d="M0 0H64V31.5H49.5L38 17.4L26.5 31.5H0z" fill="${pc}"/>`],
     ['카오스', R(C.black) + E(22, 30, 7, 5, C.cheeseD, 30) + E(42, 22, 5, 4, C.cheeseD) + E(36, 44, 7, 4, C.cheese, -10) + E(16, 46, 4, 3, C.cheese), true],
     ['샴 포인트', R(C.cream) + `<path d="M24 26L31 9L38 17L44 9L48 24Q36 20 24 26z" fill="${C.chocoD}"/>` + E(52, 48, 7, 9, C.chocoD)],
     ['초코', R(C.choco), true],
@@ -141,8 +141,7 @@ const CAT_PARTS = (() => {
   return { coat, face, glass, head, neck, hand, tail };
 })();
 // 꾸미기 창의 칸 순서와 이름
-// 하치와레는 하늘색 가르마가 기본이에요
-const catPatList = (ci) => (+ci === 12 ? [CAT_PAT[1], CAT_PAT[0], ...CAT_PAT.slice(2)] : CAT_PAT);
+const catPatList = () => CAT_PAT;
 const CAT_SLOTS = [['s', '친구'], ['c', '털 무늬'], ['p', '무늬 색'], ['e', '표정'], ['g', '얼굴 소품'], ['h', '머리'], ['n', '목'], ['b', '인어 꼬리'], ['d', '모험 도구'], ['t', '배경']];
 let catSeq = 0;
 function logoCat(o = {}) {
