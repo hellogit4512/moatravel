@@ -719,10 +719,17 @@ function render() {
   document.title = r ? `${rt.tab !== 'chat' && unread(r) ? `(${unread(r)}) ` : ''}${r.name} · 모아여행` : '모아여행 · 함께 모아 만드는 우리 여행';
   const y = scrollY, ae = document.activeElement, keep = ae?.matches?.('.sheet-add input,.sheet-add select') ? `.sheet-add [name="${ae.name}"]` : ae?.dataset?.cell !== undefined ? `[data-cell][data-id="${ae.dataset.id}"][data-f="${ae.dataset.f}"]` : null;
   const sx = $('.sheet-wrap')?.scrollLeft;
+  const gl = glideSnap();
   $('#app').innerHTML = `<div class="shell ${r ? 'is-room' : 'is-home'}">${side(rt, r)}<div class="content">${topbar(r)}<main class="main" id="main">${r ? roomPage(r, rt.tab) : home()}</main></div>${r ? bnav(rt.tab, r) : ''}</div>`;
   document.body.classList.toggle('is-home', !r);
   if (S.mapH) document.documentElement.style.setProperty('--map-h', S.mapH + 'px');
   applyMapW();
+  glidePlay(gl);
+  // 화면이 바뀔 때만(탭·일차) 부드럽게 등장 — 내용 수정으로 다시 그릴 때는 그대로
+  const vk = `${rt.page}:${rt.id || ''}:${rt.tab || ''}`, dk = rt.tab === 'plan' ? `${vk}:${ui.planDay}:${ui.planView}` : '';
+  if (render.vk !== undefined && render.vk !== vk) $('#main')?.classList.add('enter');
+  else if (dk && render.dk !== undefined && render.dk !== dk) $('.days')?.classList.add('enter');
+  render.vk = vk; render.dk = dk;
   // 지도 다시 꽂기
   const slot = $('#map-slot');
   if (slot && r) {
@@ -2577,6 +2584,39 @@ applyTheme();
 matchMedia('(prefers-color-scheme:dark)').addEventListener('change', () => { if (S.theme === 'auto') { applyTheme(); render(); } });
 if (/^#(join|s)=/.test(location.hash)) checkJoin(); else render();
 
+// 선택 표시 애니메이션(Sliding pill): 탭·일차·보기 전환 때 선택 칸이 통통 튀며 새 자리로 미끄러져요
+const GLIDE = ['.bnav', '.side .nav', '.seg', '.daychips-c'];
+const calm = () => matchMedia('(prefers-reduced-motion:reduce)').matches;
+function glideBox(g) {
+  const b = g.querySelector(':scope > .on'); if (!b) return null;
+  const gr = g.getBoundingClientRect(), ox = g.scrollLeft - g.clientLeft - gr.left, oy = g.scrollTop - g.clientTop - gr.top;
+  if (g.matches('.bnav')) { const br = b.getBoundingClientRect(), ir = (b.querySelector('.i') || b).getBoundingClientRect(), w = 58, h = 32; return { x: br.left + (br.width - w) / 2 + ox, y: ir.top + (ir.height - h) / 2 + oy, w, h }; }
+  const br = b.getBoundingClientRect();
+  return { x: br.left + ox, y: br.top + oy, w: br.width, h: br.height };
+}
+const glideSig = (g) => [...g.children].map((b) => `${b.dataset.act || ''}:${b.dataset.k || b.dataset.d || b.dataset.id || ''}`).join('|');
+function glideSnap() {
+  const m = {};
+  GLIDE.forEach((sel) => $$(sel).forEach((g, i) => { const box = glideBox(g); if (box) m[`${sel}#${i}`] = { box, sig: glideSig(g) }; }));
+  return m;
+}
+function glidePlay(prev) {
+  GLIDE.forEach((sel) => $$(sel).forEach((g, i) => {
+    const box = glideBox(g); if (!box) return;
+    const pill = document.createElement('i'); pill.className = 'glide'; pill.setAttribute('aria-hidden', 'true');
+    Object.assign(pill.style, { left: box.x + 'px', top: box.y + 'px', width: box.w + 'px', height: box.h + 'px' });
+    g.classList.add('has-glide'); g.prepend(pill);
+    const p = prev?.[`${sel}#${i}`];
+    if (!p || p.sig !== glideSig(g) || calm() || !pill.animate) return;
+    const dx = p.box.x - box.x, dy = p.box.y - box.y;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+    pill.animate([
+      { transform: `translate(${dx}px,${dy}px)`, width: p.box.w + 'px', height: p.box.h + 'px' },
+      { transform: 'none', width: box.w + 'px', height: box.h + 'px' },
+    ], { duration: 460, easing: 'cubic-bezier(.34,1.5,.5,1)' });
+    g.querySelector(':scope > .on')?.classList.add('lift');
+  }));
+}
 // PC 일정 지도 너비: 가운데 손잡이를 좌우로 끌어서 조절 (전체 보기·하루 보기 따로 기억), 두 번 누르면 기본
 const mapWKey = (pl) => (pl.classList.contains('one-day') ? 'one' : 'all');
 function applyMapW() {
