@@ -3,7 +3,19 @@
  */
 const CAT_LOGO = 'M22.7 27.6 L31.2 9.6 L38.2 17.5 L44.1 8.9 L52.2 38 C53.6 44 53 50 48 52 C42 53.6 22 53.6 16 52.4 C10.8 51 9.8 46.6 10.2 41 C10.4 37.4 11 33.6 12 29.4';
 const CAT_FILL = CAT_LOGO + ' L22.7 27.6 Z';
-const CAT_TILES = ['#0fa37a', '#ff6a47', '#3b82f6', '#f2a100', '#8b5cf6', '#1f2a26', '#9fd8c4', '#ffc2cf', '#bcd7ff', '#ffe08a', '#d9c8ff', '#e9e3d9'];
+const CAT_REST = ' C53.6 44 53 50 48 52 C42 53.6 22 53.6 16 52.4 C10.8 51 9.8 46.6 10.2 41 C10.4 37.4 11 33.6 12 29.4';
+const CAT_LINE = (d) => `<path d="${d}" fill="none" stroke="#fff" stroke-width="3.65" stroke-linecap="round" stroke-linejoin="round"/>`;
+// [이름, 몸 선, 몸 밖에 덧그리는 선(꼬리 등)]
+const CAT_KINDS = [
+  ['고양이', CAT_LOGO, ''],
+  ['토끼', 'M22.7 27.6 L27.4 19.4 L29.6 1.8 L35.2 3.4 L36 17.6 L40.4 17.4 L43.6 1.4 L49 3.6 L46.6 20 L52.2 38' + CAT_REST, ''],
+  ['날다람쥐', 'M22.7 27.6 L28.4 15.4 Q31 11.6 33.6 14.6 L37.6 18 L42.4 14.2 Q45.4 11.8 47.4 15.4 L52.2 38' + CAT_REST,
+    '<path d="M51.8 50.8C62 50.6 64.6 39 60.8 30.6C58.4 25.4 53.2 23.6 50.8 27.4C49.6 29.6 51.4 32.4 54.2 31.4C55.6 36.8 54.6 42.6 51.4 45.4z" fill="#fff" fill-opacity=".28" stroke="#fff" stroke-width="3.2" stroke-linejoin="round"/>'],
+  ['해달', 'M22.7 27.6 Q26 15.6 37.4 15Q49 15.4 51.2 27 L52.2 38' + CAT_REST,
+    '<circle cx="26.6" cy="18.4" r="1.7" fill="#fff"/><circle cx="48.4" cy="18.4" r="1.7" fill="#fff"/>'],
+  ['곰돌이', 'M22.7 27.6 L26.6 18.6 A4.6 4.6 0 0 1 34.6 14.8 L37.8 16.8 L41.6 14.4 A4.6 4.6 0 0 1 49.6 17.6 L52.2 38' + CAT_REST, ''],
+];
+const CAT_TILES = ['#0fa37a', '#ff6a47', '#3b82f6', '#f2a100', '#8b5cf6', '#1f2a26', '#9fd8c4', '#ffc2cf', '#bcd7ff', '#ffe08a', '#d9c8ff', '#e9e3d9', '#7fd3e6', '#2a7fb8', '#ffd7c2'];
 const CAT_PAT = [['까망', '#2b2f36'], ['하늘', '#8ec9f0'], ['회색', '#8a939f'], ['치즈', '#f08c2e'], ['초코', '#5e3d2a'], ['분홍', '#ff9fb4']];
 const CAT_PARTS = (() => {
   const C = { cream: '#fff3dc', cheese: '#ffbf66', cheeseD: '#f08c2e', gray: '#c3c9d2', grayD: '#7d8794', black: '#2b2f36', white: '#ffffff', pink: '#ffc8d4', choco: '#9b6b4f', chocoD: '#5e3d2a', mint: '#bfeee0' };
@@ -22,6 +34,7 @@ const CAT_PARTS = (() => {
     ['카오스', R(C.black) + E(22, 30, 7, 5, C.cheeseD, 30) + E(42, 22, 5, 4, C.cheeseD) + E(36, 44, 7, 4, C.cheese, -10) + E(16, 46, 4, 3, C.cheese), true],
     ['샴 포인트', R(C.cream) + `<path d="M24 26L31 9L38 17L44 9L48 24Q36 20 24 26z" fill="${C.chocoD}"/>` + E(52, 48, 7, 9, C.chocoD)],
     ['초코', R(C.choco), true],
+    ['하양', R(C.white)], ['노랑', R('#ffe27a')], ['연하늘', R('#cfe9ff')], ['연보라', R('#e6dcff')], ['복숭아', R('#ffd2bd')],
   ];
   // 표정 (눈은 31.6 / 44.4, 입은 38 근처). {k}는 잉크 색으로 바뀌어요
   const eyes = (r = 2.1) => `<circle cx="31.6" cy="28.4" r="${r}" fill="{k}"/><circle cx="44.4" cy="28.4" r="${r}" fill="{k}"/>`;
@@ -102,15 +115,39 @@ const CAT_PARTS = (() => {
     ['토벌봉 (하늘)', '<g transform="translate(51 57) scale(.72) translate(-51 -57)"><path d="M51 56.4L54.6 34" stroke="#3d8fc9" stroke-width="5" stroke-linecap="round"/><path d="M51 56.4L54.6 34" stroke="#7cc4ef" stroke-width="3.6" stroke-linecap="round"/><path d="M50.2 58.4l1.4-5.6" stroke="#e3e8ed" stroke-width="5" stroke-linecap="round"/><path d="M50.2 58.4l1.4-5.6" stroke="#fff" stroke-width="3.8" stroke-linecap="round"/><path d="M54.6 34.4Q50.8 31 50.4 25Q50.2 19.4 47.6 15.2" stroke="#3d8fc9" stroke-width="4.6" fill="none" stroke-linecap="round"/><path d="M54.6 34.4Q50.8 31 50.4 25Q50.2 19.4 47.6 15.2" stroke="#7cc4ef" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M54.6 34.4Q58.8 31.2 59.8 25.2Q60.6 19.4 63.4 15.6" stroke="#3d8fc9" stroke-width="4.6" fill="none" stroke-linecap="round"/><path d="M54.6 34.4Q58.8 31.2 59.8 25.2Q60.6 19.4 63.4 15.6" stroke="#7cc4ef" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M49 28.4l-2.6 1l2.6 1z" fill="#fff" stroke="#3d8fc9" stroke-width=".5" stroke-linejoin="round"/><path d="M48.6 23.6l-2.6 0.8l2.6 1z" fill="#fff" stroke="#3d8fc9" stroke-width=".5" stroke-linejoin="round"/><path d="M47.4 18.8l-2.4 0.6l2.4 1z" fill="#fff" stroke="#3d8fc9" stroke-width=".5" stroke-linejoin="round"/><path d="M61.2 28.2l2.4 1l-2.4 1z" fill="#fff" stroke="#3d8fc9" stroke-width=".5" stroke-linejoin="round"/><path d="M61.6 23.4l2.4 0.8l-2.4 1z" fill="#fff" stroke="#3d8fc9" stroke-width=".5" stroke-linejoin="round"/><path d="M62.4 18.8l2.2 0.6l-2.2 1z" fill="#fff" stroke="#3d8fc9" stroke-width=".5" stroke-linejoin="round"/></g>'],
     ['토벌봉 (분홍)', '<g transform="translate(51 57) scale(.72) translate(-51 -57)"><path d="M51 56.4L54.6 34" stroke="#d9607e" stroke-width="5" stroke-linecap="round"/><path d="M51 56.4L54.6 34" stroke="#ff9fb4" stroke-width="3.6" stroke-linecap="round"/><path d="M50.2 58.4l1.4-5.6" stroke="#e3e8ed" stroke-width="5" stroke-linecap="round"/><path d="M50.2 58.4l1.4-5.6" stroke="#fff" stroke-width="3.8" stroke-linecap="round"/><path d="M54.6 34.4Q50.8 31 50.4 25Q50.2 19.4 47.6 15.2" stroke="#d9607e" stroke-width="4.6" fill="none" stroke-linecap="round"/><path d="M54.6 34.4Q50.8 31 50.4 25Q50.2 19.4 47.6 15.2" stroke="#ff9fb4" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M54.6 34.4Q58.8 31.2 59.8 25.2Q60.6 19.4 63.4 15.6" stroke="#d9607e" stroke-width="4.6" fill="none" stroke-linecap="round"/><path d="M54.6 34.4Q58.8 31.2 59.8 25.2Q60.6 19.4 63.4 15.6" stroke="#ff9fb4" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M49 28.4l-2.6 1l2.6 1z" fill="#fff" stroke="#d9607e" stroke-width=".5" stroke-linejoin="round"/><path d="M48.6 23.6l-2.6 0.8l2.6 1z" fill="#fff" stroke="#d9607e" stroke-width=".5" stroke-linejoin="round"/><path d="M47.4 18.8l-2.4 0.6l2.4 1z" fill="#fff" stroke="#d9607e" stroke-width=".5" stroke-linejoin="round"/><path d="M61.2 28.2l2.4 1l-2.4 1z" fill="#fff" stroke="#d9607e" stroke-width=".5" stroke-linejoin="round"/><path d="M61.6 23.4l2.4 0.8l-2.4 1z" fill="#fff" stroke="#d9607e" stroke-width=".5" stroke-linejoin="round"/><path d="M62.4 18.8l2.2 0.6l-2.2 1z" fill="#fff" stroke="#d9607e" stroke-width=".5" stroke-linejoin="round"/></g>'],
   ];
-  return { coat, face, glass, head, neck, hand };
+  const scales = (c) => [44, 48, 52].map((y, r) => Array.from({ length: 9 }, (_, i) => `<path d="M${8 + i * 5.4 + (r % 2) * 2.7} ${y}q2.7 2.6 5.4 0" stroke="${c}" stroke-width="1" fill="none" opacity=".75"/>`).join('')).join('');
+  const merm = (c, d) => [
+    `<rect x="0" y="40.6" width="64" height="24" fill="${c}"/><path d="M8 41Q30 46 56 40.4" stroke="${d}" stroke-width="1.6" fill="none"/>` + scales(d),
+    `<path d="M47 50.6Q53.6 47.6 55.4 41.4Q58.6 47 63.4 46.2Q61.6 52.4 56.4 54.6Q60.4 58.6 59.6 63Q53.4 60.4 49.6 55.2z" fill="${c}" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/><path d="M55.4 44l1.2 7M58.4 57.6l-4.4-3.2M60.4 48.6l-4 3.4" stroke="${d}" stroke-width="1" opacity=".85" stroke-linecap="round"/>`,
+  ];
+  const tail = [
+    ['없음', ['', '']],
+    ['인어 꼬리 (민트)', merm('#8fe3cf', '#3fb393')],
+    ['인어 꼬리 (분홍)', merm('#ffb7c9', '#e5708c')],
+    ['인어 꼬리 (보라)', merm('#c9b2ff', '#8b5cf6')],
+    ['인어 꼬리 (하늘)', merm('#a8dcff', '#3d8fc9')],
+  ];
+  head.push(
+    ['조개 왕관', '<path d="M31.4 17.6Q31 9.6 38 8.6Q45 9.6 44.6 17.6z" fill="#ffd9e4" stroke="#e5708c" stroke-width="1"/><path d="M38 8.8V17.4M34.4 10.4l1.6 7M41.6 10.4l-1.6 7" stroke="#e5708c" stroke-width=".9"/><circle cx="38" cy="7.6" r="1.6" fill="#fff" stroke="#e3e8ed" stroke-width=".6"/>'],
+    ['불가사리 핀', '<path d="M44.4 3.6l1.6 3.8 4-.4-3 2.8 1.4 3.8-3.6-2-3.4 2.2 1.2-3.9-3.1-2.6 4-.2z" fill="#ff9a6b" stroke="#e2643a" stroke-width=".9" stroke-linejoin="round"/><circle cx="44.6" cy="8.6" r=".6" fill="#fff"/><circle cx="46.2" cy="9.4" r=".5" fill="#fff"/>'],
+  );
+  neck.push(
+    ['진주 목걸이', Array.from({ length: 11 }, (_, i) => { const t = i / 10, x = 14 + t * 37.6, y = 40.4 + Math.sin(t * Math.PI) * 5.4 - t * .6; return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.9" fill="#fffaf2" stroke="#e3d6c6" stroke-width=".6"/>`; }).join('')],
+  );
+  hand.push(
+    ['산호 지팡이', '<path d="M51.6 55L55.4 31" stroke="#ff7f8f" stroke-width="2.8" stroke-linecap="round"/><path d="M55 33.6Q51.4 30 52.4 24.8M55.4 31Q58.8 27.6 58 22.6M54.4 27.4Q56.4 24.8 55.2 21.4M57.6 25.6Q60.6 24.6 60.6 21.4" stroke="#ff7f8f" stroke-width="2.2" fill="none" stroke-linecap="round"/>'],
+    ['물방울 거품', '<circle cx="55.6" cy="38" r="3.6" fill="#dff4ff" fill-opacity=".7" stroke="#8ec9f0" stroke-width="1"/><circle cx="58.8" cy="29.6" r="2.4" fill="#dff4ff" fill-opacity=".7" stroke="#8ec9f0" stroke-width="1"/><circle cx="55" cy="23.6" r="1.6" fill="#dff4ff" fill-opacity=".7" stroke="#8ec9f0" stroke-width="1"/><circle cx="54.4" cy="36.8" r=".8" fill="#fff"/>'],
+  );
+  return { coat, face, glass, head, neck, hand, tail };
 })();
 // 꾸미기 창의 칸 순서와 이름
 // 하치와레는 하늘색 가르마가 기본이에요
 const catPatList = (ci) => (+ci === 12 ? [CAT_PAT[1], CAT_PAT[0], ...CAT_PAT.slice(2)] : CAT_PAT);
-const CAT_SLOTS = [['c', '털 무늬'], ['p', '무늬 색'], ['e', '표정'], ['g', '얼굴 소품'], ['h', '머리'], ['n', '목'], ['d', '모험 도구'], ['t', '배경']];
+const CAT_SLOTS = [['s', '친구'], ['c', '털 무늬'], ['p', '무늬 색'], ['e', '표정'], ['g', '얼굴 소품'], ['h', '머리'], ['n', '목'], ['b', '인어 꼬리'], ['d', '모험 도구'], ['t', '배경']];
 let catSeq = 0;
 function logoCat(o = {}) {
   const P = CAT_PARTS, n = (k, list) => { const v = Math.floor(+o[k] || 0); return v >= 0 && v < list.length ? v : 0; };
+  const [, line, extra] = CAT_KINDS[n('s', CAT_KINDS)], fill = line + ' L22.7 27.6 Z', [tb, tf] = P.tail[n('b', P.tail)][1];
   const ci = n('c', P.coat), pl = catPatList(ci), pi = n('p', pl), ti = n('t', CAT_TILES);
   const [, cv, darkRule] = P.coat[ci], pc = pl[pi][1];
   const body = typeof cv === 'function' ? cv(pc) : cv;
@@ -118,17 +155,17 @@ function logoCat(o = {}) {
   const dark = (darkRule === 'tile' && ti < 6) || darkRule === true || (typeof darkRule === 'function' && darkRule(pi));
   const ink = dark ? '#fffaf0' : '#2b2622';
   const id = 'cat' + (catSeq++).toString(36);
-  return `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><clipPath id="${id}"><path d="${CAT_FILL}"/></clipPath></defs><rect width="64" height="64" rx="16" fill="${CAT_TILES[ti]}"/>`
+  return `<svg viewBox="0 0 64 64" aria-hidden="true"><defs><clipPath id="${id}"><path d="${fill}"/></clipPath></defs><rect width="64" height="64" rx="16" fill="${CAT_TILES[ti]}"/>`
     + '<g transform="translate(32 32) scale(.9) translate(-31 -31.5)">'
-    + (body ? `<g clip-path="url(#${id})">${body}</g>` : '')
+    + (body || tb ? `<g clip-path="url(#${id})">${body}${tb}</g>` : '') + tf
     + P.neck[n('n', P.neck)][1]
-    + `<path d="${CAT_LOGO}" fill="none" stroke="#fff" stroke-width="3.65" stroke-linecap="round" stroke-linejoin="round"/>`
+    + CAT_LINE(line) + extra
     + P.face[n('e', P.face)][1].replace(/\{k\}/g, ink)
     + P.glass[n('g', P.glass)][1]
     + P.head[n('h', P.head)][1]
     + P.hand[n('d', P.hand)][1]
     + '</g></svg>';
 }
-const catOpts = (slot, o = {}) => (slot === 'p' ? catPatList(o.c) : slot === 't' ? CAT_TILES.map((c, i) => [`배경 ${i + 1}`, c]) : CAT_PARTS[{ c: 'coat', e: 'face', g: 'glass', h: 'head', n: 'neck', d: 'hand' }[slot]]);
+const catOpts = (slot, o = {}) => (slot === 's' ? CAT_KINDS : slot === 'p' ? catPatList(o.c) : slot === 't' ? CAT_TILES.map((c, i) => [`배경 ${i + 1}`, c]) : CAT_PARTS[{ c: 'coat', e: 'face', g: 'glass', h: 'head', n: 'neck', d: 'hand', b: 'tail' }[slot]]);
 const catHasPat = (o) => typeof CAT_PARTS.coat[+o.c || 0]?.[1] === 'function';
-if (typeof module !== 'undefined') module.exports = { logoCat, CAT_PARTS, CAT_SLOTS, CAT_TILES, CAT_PAT, catOpts, catHasPat };
+if (typeof module !== 'undefined') module.exports = { logoCat, CAT_KINDS, CAT_PARTS, CAT_SLOTS, CAT_TILES, CAT_PAT, catOpts, catHasPat };

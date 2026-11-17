@@ -883,7 +883,7 @@ function roomPage(r, tab) {
     <div class="grow">
       <div class="kicker">${range(r)} · ${nights(r)}</div>
       <h1>${esc(r.name)}</h1>
-      <div class="meta"><span class="crew">${r.members.map((m) => `<button type="button" class="crew-m" data-act="cat-mem" data-id="${m.id}" title="${esc(m.name)} · 고양이 꾸미기">${av(m, 36)}</button>`).join('')}</span><span>${r.members.length}명</span>${syncPill(r)}${me ? `<span class="sep"></span><button class="link" data-act="pick-me" style="color:var(--muted);font-weight:500;text-decoration:none">${esc(me.name)}(으)로 참여 중 <span style="color:var(--accent)">변경</span></button><button class="link cat-me" data-act="cat-mem" data-id="${me.id}">${av(me, 20)}내 고양이 꾸미기</button>` : ''}</div>
+      <div class="meta"><span class="crew">${r.members.map((m) => `<button type="button" class="crew-m" data-act="cat-mem" data-id="${m.id}" title="${esc(m.name)} · 고양이 꾸미기">${av(m, 36)}</button>`).join('')}</span><span>${r.members.length}명</span>${syncPill(r)}${me ? `<span class="sep"></span><button class="link" data-act="pick-me" style="color:var(--muted);font-weight:500;text-decoration:none">${esc(me.name)}(으)로 참여 중 <span style="color:var(--accent)">변경</span></button><button class="link cat-me" data-act="cat-mem" data-id="${me.id}">${av(me, 20)}내 캐릭터 꾸미기</button>` : ''}</div>
     </div>
     <div class="right">
       ${r.demo ? '' : `<div class="dday">${dday(r)}</div>`}
@@ -2271,13 +2271,13 @@ function catEditor(r, m0) {
   const o = { ...base, ...(m0.cat || {}) };
   let slot = 'c';
   const f = openModal({
-    title: `${esc(m0.name)}님의 고양이`, ok: '저장',
+    title: `${esc(m0.name)}님의 캐릭터`, ok: '저장',
     body: `<div class="cat-ed"><div class="cat-prev"></div>
       <div class="cat-tools"><button type="button" class="btn sm" data-x="rand">${I('refresh', 15)}무작위</button><button type="button" class="btn sm ghost" data-x="reset">처음으로</button>${m0.cat ? '<button type="button" class="btn sm ghost danger" data-x="off">글자 프로필로</button>' : ''}</div>
       <div class="chips cat-slots" role="tablist"></div><div class="cat-grid"></div></div>`,
     onOk() {
       const r1 = room() || r, m = r1.members.find((x) => x.id === id); if (!m) return;
-      m.cat = { ...o }; touch(r1, m); render(); toast('고양이를 바꿨어요');
+      m.cat = { ...o }; touch(r1, m); render(); toast('캐릭터를 바꿨어요');
     },
   });
   const draw = () => {
