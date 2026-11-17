@@ -9,7 +9,8 @@ const COLORS = ['#0fa37a', '#ff6a47', '#3b82f6', '#f2a100', '#8b5cf6', '#14b8a6'
 const TONES = [['#0fa37a', '#ffffff'], ['#ff6a47', '#ffffff'], ['#3b82f6', '#ffffff'], ['#ffc53d', '#3a2b00'], ['#8b5cf6', '#ffffff'], ['#14b8a6', '#ffffff'], ['#ec4899', '#ffffff'], ['#1f2a26', '#e9f1ed']];
 const CATS = [
   { k: 'spot', n: '관광', c: '#0fa37a', i: 'catSpot', a: ['명소'] }, { k: 'food', n: '맛집', c: '#ff6a47', i: 'catFood' }, { k: 'cafe', n: '카페', c: '#c2803d', i: 'catCafe' },
-  { k: 'stay', n: '숙소', c: '#3b82f6', i: 'catStay' }, { k: 'shop', n: '쇼핑', c: '#8b5cf6', i: 'catShop' }, { k: 'etc', n: '기타', c: '#94a3b8', i: 'catEtc' },
+  { k: 'stay', n: '숙소', c: '#3b82f6', i: 'catStay' }, { k: 'move', n: '교통', c: '#14b8a6', i: 'catMove' },
+  { k: 'shop', n: '쇼핑', c: '#8b5cf6', i: 'catShop' }, { k: 'etc', n: '기타', c: '#94a3b8', i: 'catEtc' },
 ];
 const ECATS = [
   { k: 'food', n: '식비', c: '#ff6a47', i: 'catFood' }, { k: 'move', n: '교통', c: '#3b82f6', i: 'catMove' }, { k: 'stay', n: '숙박', c: '#0fa37a', i: 'catStay' },
@@ -123,8 +124,8 @@ const enc = encodeURIComponent;
 const won = (n) => Math.round(n).toLocaleString('ko-KR') + '원';
 // 분류 표시: 색 점 대신 분류 색으로 칠한 아이콘 배지 (아이콘이 없으면 점)
 const catIc = (c, s = 17) => (c.i ? `<span class="cic" style="--c:${c.c}" title="${c.n}">${I(c.i, s, 2)}</span>` : `${catIc(c)}`);
-const cat = (k) => CATS.find((c) => c.k === k) || CATS[5];
-const ecat = (k) => ECATS.find((c) => c.k === k) || ECATS[5];
+const cat = (k) => CATS.find((c) => c.k === k) || CATS[CATS.length - 1];
+const ecat = (k) => ECATS.find((c) => c.k === k) || ECATS[ECATS.length - 1];
 const pad = (n) => String(n).padStart(2, '0');
 const isoDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const addDays = (iso, n) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return d; };
@@ -393,7 +394,7 @@ async function sdk(kind) {
     return true;
   } catch (e) { failed[kind] = true; return false; }
 }
-const KAKAO_CAT = { FD6: 'food', CE7: 'cafe', AD5: 'stay', AT4: 'spot', CT1: 'spot', MT1: 'shop', CS2: 'shop' };
+const KAKAO_CAT = { FD6: 'food', CE7: 'cafe', AD5: 'stay', AT4: 'spot', CT1: 'spot', MT1: 'shop', CS2: 'shop', SW8: 'move', PK6: 'move', OL7: 'move' };
 function center(r) {
   const p = r.places.filter((x) => x.lat); if (!p.length) return null;
   return [p.reduce((s, x) => s + x.lat, 0) / p.length, p.reduce((s, x) => s + x.lng, 0) / p.length];
@@ -410,7 +411,7 @@ async function searchPlaces(q, r) {
       } else {
         const { Place } = await google.maps.importLibrary('places');
         const { places } = await Place.searchByText({ textQuery: q, fields: ['displayName', 'formattedAddress', 'location', 'id', 'primaryTypeDisplayName', 'types'], language: 'ko', maxResultCount: 10 });
-        const gcat = (t = []) => (t.includes('cafe') ? 'cafe' : t.includes('restaurant') || t.includes('food') ? 'food' : t.includes('lodging') ? 'stay' : t.some((x) => /store|shopping/.test(x)) ? 'shop' : t.some((x) => /tourist|park|museum|natural/.test(x)) ? 'spot' : undefined);
+        const gcat = (t = []) => (t.includes('cafe') ? 'cafe' : t.includes('restaurant') || t.includes('food') ? 'food' : t.includes('lodging') ? 'stay' : t.some((x) => /airport|station|transit|car_rental|parking|gas_station|bus|subway|train|ferry/.test(x)) ? 'move' : t.some((x) => /store|shopping/.test(x)) ? 'shop' : t.some((x) => /tourist|park|museum|natural/.test(x)) ? 'spot' : undefined);
         return { src: 'google', items: places.map((p) => ({ name: p.displayName, addr: p.formattedAddress, lat: p.location.lat(), lng: p.location.lng(), gid: p.id, cat: gcat(p.types), hint: p.primaryTypeDisplayName || '' })) };
       }
     } catch (e) { console.warn('[모아여행] 지도 검색 실패, OSM으로 대체', e); }
@@ -420,7 +421,7 @@ async function searchPlaces(q, r) {
     const res = await fetch(`https://photon.komoot.io/api/?q=${enc(q)}&limit=10${c ? `&lat=${c[0]}&lon=${c[1]}` : ''}`);
     const js = await res.json();
     if (js.features?.length) {
-      const oc = (v = '') => (/restaurant|fast_food|food|bar|pub/.test(v) ? 'food' : /cafe|bakery/.test(v) ? 'cafe' : /hotel|guest|hostel|motel|apartment/.test(v) ? 'stay' : /mall|shop|market|supermarket|department/.test(v) ? 'shop' : /attraction|viewpoint|beach|park|museum|peak|forest|garden|castle|temple|island/.test(v) ? 'spot' : undefined);
+      const oc = (v = '') => (/restaurant|fast_food|food|bar|pub/.test(v) ? 'food' : /cafe|bakery/.test(v) ? 'cafe' : /hotel|guest|hostel|motel|apartment/.test(v) ? 'stay' : /aerodrome|airport|station|bus_stop|ferry|car_rental|parking|fuel|terminal/.test(v) ? 'move' : /mall|shop|market|supermarket|department/.test(v) ? 'shop' : /attraction|viewpoint|beach|park|museum|peak|forest|garden|castle|temple|island/.test(v) ? 'spot' : undefined);
       return { src: 'osm', items: js.features.map((f) => { const p = f.properties; return { cat: oc(p.osm_value), name: p.name || p.street || q, addr: [p.state, p.city || p.county, p.district, p.street, p.housenumber].filter(Boolean).join(' ') || p.country || '', lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0], hint: p.osm_value?.replace(/_/g, ' ') }; }) };
     }
   } catch (e) { /* 다음 */ }
@@ -1374,7 +1375,7 @@ const sheetStyle = (cols = SHEET_COLS) => `width:${cols.reduce((a, c) => a + col
 })();
 const moneyViewSeg = () => `<div class="seg"><button class="${ui.moneyView !== 'table' ? 'on' : ''}" data-act="money-view" data-k="list" aria-label="목록으로 보기" title="목록으로 보기">${I('grid', 16)}</button><button class="${ui.moneyView === 'table' ? 'on' : ''}" data-act="money-view" data-k="table" aria-label="표로 보기" title="표로 보기">${I('list', 16)}표</button></div>`;
 // 일정 표의 '지출' 칸: 비어 있으면 새 지출, 1건이면 그 금액 수정, 여러 건이면 목록 열기
-const P2E = { food: 'food', cafe: 'food', stay: 'stay', shop: 'shop', spot: 'play', etc: 'etc' };
+const P2E = { food: 'food', cafe: 'food', stay: 'stay', move: 'move', shop: 'shop', spot: 'play', etc: 'etc' };
 const defCur = (r) => { const ks = Object.keys(r.fx || {}).filter((k) => curOf(k)); return ks.includes(guessCur(r)) ? guessCur(r) : ks[0] || 'KRW'; };
 function spentCell(r, p) {
   const lx = r.expenses.filter((e) => e.pid === p.id);
