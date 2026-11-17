@@ -821,10 +821,10 @@ th:hover .col-rs::after,.col-rs.on::after{background:var(--accent)}
 }
 
 /* 분류 아이콘 배지: 분류 색으로 칠한 작은 아이콘 */
-.cic{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;flex:none;background:color-mix(in srgb,var(--c) 15%,transparent);color:var(--c)}
+.cic{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:8px;flex:none;background:color-mix(in srgb,var(--c) 15%,transparent);color:var(--c)}
 .cic .i{display:block}
 .chip .cic{margin-left:-4px}
-.chip>.i{margin-left:-2px;color:var(--faint)}
-.chip.on>.i{color:currentColor}
-.now-name .cic{width:26px;height:26px;border-radius:8px}
-.modal .cic{width:24px;height:24px;border-radius:7px}
+.now-name .cic{width:30px;height:30px;border-radius:9px}
+.modal .cic{width:28px;height:28px;border-radius:8px}
+.chip .cic{width:22px;height:22px;border-radius:7px}
+.stop-name .cic,.pend-name .cic{width:22px;height:22px;border-radius:7px}
