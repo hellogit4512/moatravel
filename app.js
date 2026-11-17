@@ -8,12 +8,12 @@ const KEY = 'moa.v2';
 const COLORS = ['#0fa37a', '#ff6a47', '#3b82f6', '#f2a100', '#8b5cf6', '#14b8a6', '#ec4899', '#64748b', '#84cc16', '#0ea5e9'];
 const TONES = [['#0fa37a', '#ffffff'], ['#ff6a47', '#ffffff'], ['#3b82f6', '#ffffff'], ['#ffc53d', '#3a2b00'], ['#8b5cf6', '#ffffff'], ['#14b8a6', '#ffffff'], ['#ec4899', '#ffffff'], ['#1f2a26', '#e9f1ed']];
 const CATS = [
-  { k: 'spot', n: '명소', c: '#0fa37a', i: 'flag' }, { k: 'food', n: '맛집', c: '#ff6a47', i: 'food' }, { k: 'cafe', n: '카페', c: '#c2803d', i: 'cafe' },
-  { k: 'stay', n: '숙소', c: '#3b82f6', i: 'bed' }, { k: 'shop', n: '쇼핑', c: '#8b5cf6', i: 'bag' }, { k: 'etc', n: '기타', c: '#94a3b8', i: 'more' },
+  { k: 'spot', n: '명소', c: '#0fa37a', i: 'catSpot' }, { k: 'food', n: '맛집', c: '#ff6a47', i: 'catFood' }, { k: 'cafe', n: '카페', c: '#c2803d', i: 'catCafe' },
+  { k: 'stay', n: '숙소', c: '#3b82f6', i: 'catStay' }, { k: 'shop', n: '쇼핑', c: '#8b5cf6', i: 'catShop' }, { k: 'etc', n: '기타', c: '#94a3b8', i: 'catEtc' },
 ];
 const ECATS = [
-  { k: 'food', n: '식비', c: '#ff6a47', i: 'food' }, { k: 'move', n: '교통', c: '#3b82f6', i: 'bus' }, { k: 'stay', n: '숙박', c: '#0fa37a', i: 'bed' },
-  { k: 'play', n: '관광', c: '#f2a100', i: 'ticket' }, { k: 'shop', n: '쇼핑', c: '#8b5cf6', i: 'bag' }, { k: 'etc', n: '기타', c: '#94a3b8', i: 'more' },
+  { k: 'food', n: '식비', c: '#ff6a47', i: 'catFood' }, { k: 'move', n: '교통', c: '#3b82f6', i: 'catMove' }, { k: 'stay', n: '숙박', c: '#0fa37a', i: 'catStay' },
+  { k: 'play', n: '관광', c: '#f2a100', i: 'catPlay' }, { k: 'shop', n: '쇼핑', c: '#8b5cf6', i: 'catShop' }, { k: 'etc', n: '기타', c: '#94a3b8', i: 'catEtc' },
 ];
 const MOODS = ['😆', '🥰', '😌', '🤤', '😴', '🥲'];
 const TABS = [
@@ -63,6 +63,19 @@ const ICONS = {
   bus: '<rect x="5" y="3.5" width="14" height="14" rx="3"/><path d="M5 11h14M8 20.5v-3M16 20.5v-3"/><circle cx="8.5" cy="14.3" r=".7" fill="currentColor"/><circle cx="15.5" cy="14.3" r=".7" fill="currentColor"/>',
   plane: '<path d="M21 4.5l-5.5 5.2 2 9.3-1.8 1.5-3.7-7.2-4 3.7.4 3-1.4 1.2-1.7-3.6L1.7 16l1.2-1.4 3 .4 3.7-4-7.2-3.7L4 5.5l9.3 2 5.2-5.5a1.8 1.8 0 0 1 2.5 2.5z"/>',
   receipt: '<path d="M6 3.5h12v17l-2.4-1.6-2.4 1.6-2.4-1.6-2.4 1.6L6 20.5z"/><path d="M9 8.5h6M9 12h6M9 15.5h3.5"/>',
+  // 고양이 + 소품: 앱 로고 고양이에 분류별 소품을 안고 있는 모양
+  cat: '<path d="M6.7 9.9L9.8 3.2L12.4 6.1L14.6 3L17.6 13.7C18.1 15.9 17.9 18.2 16.1 18.9C13.8 19.5 6.4 19.5 4.2 19.1C2.3 18.5 1.9 16.9 2.1 14.8C2.2 13.5 2.4 12.1 2.7 10.5"/><circle cx="10.6" cy="8.4" r=".75" fill="currentColor" stroke="none"/><circle cx="14" cy="8.1" r=".75" fill="currentColor" stroke="none"/>',
+  catFood: '<path d="M6.7 9.9L9.8 3.2L12.4 6.1L14.6 3L17.6 13.7C18.1 15.9 17.9 18.2 16.1 18.9C13.8 19.5 6.4 19.5 4.2 19.1C2.3 18.5 1.9 16.9 2.1 14.8C2.2 13.5 2.4 12.1 2.7 10.5"/><circle cx="10.6" cy="8.4" r=".75" fill="currentColor" stroke="none"/><circle cx="14" cy="8.1" r=".75" fill="currentColor" stroke="none"/><path d="M8.4 11.8v5.6M7.4 11.8v1.5a1 1 0 0 0 2 0v-1.5M13.2 17.4v-5.6c-1 .7-1.5 1.9-1.5 3.3h1.5"/>',
+  catCafe: '<path d="M6.7 9.9L9.8 3.2L12.4 6.1L14.6 3L17.6 13.7C18.1 15.9 17.9 18.2 16.1 18.9C13.8 19.5 6.4 19.5 4.2 19.1C2.3 18.5 1.9 16.9 2.1 14.8C2.2 13.5 2.4 12.1 2.7 10.5"/><circle cx="10.6" cy="8.4" r=".75" fill="currentColor" stroke="none"/><circle cx="14" cy="8.1" r=".75" fill="currentColor" stroke="none"/><path d="M6 12.6h6v2.2a2.5 2.5 0 0 1-2.5 2.5h-1A2.5 2.5 0 0 1 6 14.8z"/><path d="M12 13.2h.7a1.3 1.3 0 0 1 0 2.6H12"/>',
+  catStay: '<path d="M6.7 9.9L9.8 3.2L12.4 6.1L14.6 3L17.6 13.7C18.1 15.9 17.9 18.2 16.1 18.9C13.8 19.5 6.4 19.5 4.2 19.1C2.3 18.5 1.9 16.9 2.1 14.8C2.2 13.5 2.4 12.1 2.7 10.5"/><circle cx="10.6" cy="8.4" r=".75" fill="currentColor" stroke="none"/><circle cx="14" cy="8.1" r=".75" fill="currentColor" stroke="none"/><path d="M6.3 13h3l-3 3.8h3"/><path d="M10.8 11.6h2l-2 2.4h2"/>',
+  catShop: '<path d="M6.7 9.9L9.8 3.2L12.4 6.1L14.6 3L17.6 13.7C18.1 15.9 17.9 18.2 16.1 18.9C13.8 19.5 6.4 19.5 4.2 19.1C2.3 18.5 1.9 16.9 2.1 14.8C2.2 13.5 2.4 12.1 2.7 10.5"/><circle cx="10.6" cy="8.4" r=".75" fill="currentColor" stroke="none"/><circle cx="14" cy="8.1" r=".75" fill="currentColor" stroke="none"/><path d="M7.2 13h6.2l-.5 4.6H7.7z"/><path d="M9 13v-.8a1.3 1.3 0 0 1 2.6 0v.8"/>',
+  catSpot: '<path d="M6.7 9.9L9.8 3.2L12.4 6.1L14.6 3L17.6 13.7C18.1 15.9 17.9 18.2 16.1 18.9C13.8 19.5 6.4 19.5 4.2 19.1C2.3 18.5 1.9 16.9 2.1 14.8C2.2 13.5 2.4 12.1 2.7 10.5"/><circle cx="10.6" cy="8.4" r=".75" fill="currentColor" stroke="none"/><circle cx="14" cy="8.1" r=".75" fill="currentColor" stroke="none"/><path d="M8.4 17.6v-6.2"/><path d="M8.4 11.6h4.4l-1 1.6 1 1.6H8.4"/>',
+  catEtc: '<path d="M6.7 9.9L9.8 3.2L12.4 6.1L14.6 3L17.6 13.7C18.1 15.9 17.9 18.2 16.1 18.9C13.8 19.5 6.4 19.5 4.2 19.1C2.3 18.5 1.9 16.9 2.1 14.8C2.2 13.5 2.4 12.1 2.7 10.5"/><circle cx="10.6" cy="8.4" r=".75" fill="currentColor" stroke="none"/><circle cx="14" cy="8.1" r=".75" fill="currentColor" stroke="none"/><circle cx="6.8" cy="15" r=".9" fill="currentColor" stroke="none"/><circle cx="9.8" cy="15" r=".9" fill="currentColor" stroke="none"/><circle cx="12.8" cy="15" r=".9" fill="currentColor" stroke="none"/>',
+  catMove: '<path d="M6.7 9.9L9.8 3.2L12.4 6.1L14.6 3L17.6 13.7C18.1 15.9 17.9 18.2 16.1 18.9C13.8 19.5 6.4 19.5 4.2 19.1C2.3 18.5 1.9 16.9 2.1 14.8C2.2 13.5 2.4 12.1 2.7 10.5"/><circle cx="10.6" cy="8.4" r=".75" fill="currentColor" stroke="none"/><circle cx="14" cy="8.1" r=".75" fill="currentColor" stroke="none"/><path d="M5.8 15.8l1-2.6h5.2l1 2.6v1.3H5.8z"/><circle cx="7.9" cy="17.3" r=".6" fill="currentColor"/><circle cx="11" cy="17.3" r=".6" fill="currentColor"/>',
+  catPlay: '<path d="M6.7 9.9L9.8 3.2L12.4 6.1L14.6 3L17.6 13.7C18.1 15.9 17.9 18.2 16.1 18.9C13.8 19.5 6.4 19.5 4.2 19.1C2.3 18.5 1.9 16.9 2.1 14.8C2.2 13.5 2.4 12.1 2.7 10.5"/><circle cx="10.6" cy="8.4" r=".75" fill="currentColor" stroke="none"/><circle cx="14" cy="8.1" r=".75" fill="currentColor" stroke="none"/><path d="M9.6 11.4l.9 1.9 2 .2-1.5 1.4.4 2-1.8-1-1.8 1 .4-2-1.5-1.4 2-.2z"/>',
+  catPlane: '<path d="M6.7 9.9L9.8 3.2L12.4 6.1L14.6 3L17.6 13.7C18.1 15.9 17.9 18.2 16.1 18.9C13.8 19.5 6.4 19.5 4.2 19.1C2.3 18.5 1.9 16.9 2.1 14.8C2.2 13.5 2.4 12.1 2.7 10.5"/><circle cx="10.6" cy="8.4" r=".75" fill="currentColor" stroke="none"/><circle cx="14" cy="8.1" r=".75" fill="currentColor" stroke="none"/><path d="M5.8 14.6l7.2-2.6-2.6 6.8-1.3-3.1z"/>',
+  catReceipt: '<path d="M6.7 9.9L9.8 3.2L12.4 6.1L14.6 3L17.6 13.7C18.1 15.9 17.9 18.2 16.1 18.9C13.8 19.5 6.4 19.5 4.2 19.1C2.3 18.5 1.9 16.9 2.1 14.8C2.2 13.5 2.4 12.1 2.7 10.5"/><circle cx="10.6" cy="8.4" r=".75" fill="currentColor" stroke="none"/><circle cx="14" cy="8.1" r=".75" fill="currentColor" stroke="none"/><path d="M7.8 11.6h5v6l-1.25-.8-1.25.8-1.25-.8-1.25.8z"/><path d="M9.1 13.6h2.4M9.1 15.2h2.4"/>',
+  catQ: '<path d="M6.7 9.9L9.8 3.2L12.4 6.1L14.6 3L17.6 13.7C18.1 15.9 17.9 18.2 16.1 18.9C13.8 19.5 6.4 19.5 4.2 19.1C2.3 18.5 1.9 16.9 2.1 14.8C2.2 13.5 2.4 12.1 2.7 10.5"/><circle cx="10.6" cy="8.4" r=".75" fill="currentColor" stroke="none"/><circle cx="14" cy="8.1" r=".75" fill="currentColor" stroke="none"/><path d="M8.4 12.6a1.6 1.6 0 1 1 2.2 1.5c-.5.2-.7.6-.7 1.1"/><circle cx="9.9" cy="17.1" r=".7" fill="currentColor" stroke="none"/>',
   more: '<circle cx="5.5" cy="12" r="1.1" fill="currentColor"/><circle cx="12" cy="12" r="1.1" fill="currentColor"/><circle cx="18.5" cy="12" r="1.1" fill="currentColor"/>',
   grid: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/>',
@@ -109,7 +122,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const enc = encodeURIComponent;
 const won = (n) => Math.round(n).toLocaleString('ko-KR') + '원';
 // 분류 표시: 색 점 대신 분류 색으로 칠한 아이콘 배지 (아이콘이 없으면 점)
-const catIc = (c, s = 13) => (c.i ? `<span class="cic" style="--c:${c.c}" title="${c.n}">${I(c.i, s, 2)}</span>` : `${catIc(c)}`);
+const catIc = (c, s = 17) => (c.i ? `<span class="cic" style="--c:${c.c}" title="${c.n}">${I(c.i, s, 2)}</span>` : `${catIc(c)}`);
 const cat = (k) => CATS.find((c) => c.k === k) || CATS[5];
 const ecat = (k) => ECATS.find((c) => c.k === k) || ECATS[5];
 const pad = (n) => String(n).padStart(2, '0');
@@ -937,8 +950,8 @@ function placesTab(r) {
   ${r.places.length > 3 ? `<div class="input-wrap" style="margin-bottom:12px">${I('search', 16)}<input type="search" data-q value="${esc(ui.q)}" placeholder="모아둔 곳에서 찾기 — 이름, 주소, 한마디, 제안한 사람" aria-label="모아둔 곳 검색"></div>` : ''}
   <div class="toolbar">
     <div class="chips" role="tablist">
-      <button class="chip ${ui.filter === 'all' ? 'on' : ''}" data-act="filter" data-k="all">${I('grid', 15)}전체 ${r.places.length}</button>
-      <button class="chip ${ui.filter === 'none' ? 'on' : ''}" data-act="filter" data-k="none">${I('cal', 15)}날짜 미정</button>
+      <button class="chip ${ui.filter === 'all' ? 'on' : ''}" data-act="filter" data-k="all">${catIc({ c: 'var(--accent)', n: '전체', i: 'cat' })}전체 ${r.places.length}</button>
+      <button class="chip ${ui.filter === 'none' ? 'on' : ''}" data-act="filter" data-k="none">${catIc({ c: 'var(--muted)', n: '날짜 미정', i: 'catQ' })}날짜 미정</button>
       ${CATS.filter((c) => r.places.some((p) => p.cat === c.k)).map((c) => `<button class="chip ${ui.filter === c.k ? 'on' : ''}" data-act="filter" data-k="${c.k}">${catIc(c)}${c.n}</button>`).join('')}
     </div>
     <div class="row">
@@ -1199,7 +1212,7 @@ function todayTab(r) {
   <div class="faint" style="font-size:12px;text-align:center;margin:6px 0 14px">${done === items.length ? '오늘 일정을 모두 마쳤어요 🎉' : `${items.length}곳 중 ${done}곳 다녀왔어요`}</div>
   ${next ? `<section class="card now" data-pid="${next.id}">
     <div class="now-k">${ni === 0 && !done ? '첫 번째 장소' : '지금 갈 곳'} · ${ni + 1}/${items.length}</div>
-    <h2 class="now-name">${catIc(cat(next.cat), 16)}${esc(next.name)}</h2>
+    <h2 class="now-name">${catIc(cat(next.cat), 22)}${esc(next.name)}</h2>
     <div class="faint now-sub">${next.time ? `<b style="color:var(--text)">${next.time}</b> · ` : ''}${esc(next.addr || '주소 없음')}</div>
     ${next.memo ? `<p class="now-memo">${esc(next.memo)}</p>` : ''}
     <div class="now-acts">
@@ -1536,7 +1549,7 @@ function placeDetail(r, p) {
   if (p.lat) selPlace(p.id, { focus: true });
   const me = meId(r), on = p.hearts.includes(me), c = cat(p.cat), lx = r.expenses.filter((e) => e.pid === p.id), n = dayCount(r), lock = !!r.confirmed;
   const f = openModal({
-    title: `${catIc(c, 15)} ${esc(p.name)}`,
+    title: `${catIc(c, 20)} ${esc(p.name)}`,
     body: `<div class="row wrap" style="gap:6px"><span class="tag">${c.n}</span>${p.day ? `<span class="tag accent">${p.day}일차${dl(r, p.day)}${p.time ? ` · ${p.time}` : ''}</span>` : '<span class="tag">날짜 미정</span>'}${p.visited ? '<span class="tag">다녀옴</span>' : ''}<span class="faint" style="font-size:12px">${esc(member(r, p.by).name)}님 제안</span></div>
       ${p.addr ? `<div class="pd-row">${I('pin', 16)}<span class="grow">${esc(p.addr)}</span></div>` : ''}
       ${p.memo ? `<p class="pd-memo">${esc(p.memo)}</p>` : ''}
@@ -1589,7 +1602,7 @@ const placeSpent = (r, pid) => r.expenses.filter((e) => e.pid === pid).reduce((s
 function tripToday(r) { if (undated(r)) return 0; const d = Math.round((new Date(isoDate(new Date())) - new Date(r.start)) / 864e5) + 1; return d >= 1 && d <= dayCount(r) ? d : 0; }
 function expRow(r, e) {
   const pl = e.pid && r.places.find((p) => p.id === e.pid);
-  return `<button class="r" data-act="edit-exp" data-id="${e.id}">${catIc(ecat(e.cat), 15)}<div class="grow"><b>${esc(e.title)}</b>${e.photos?.length ? ` <span class="faint" title="영수증 ${e.photos.length}장" style="display:inline-flex;vertical-align:-3px">${I('clip', 15)}</span>` : ''}<div class="faint" style="font-size:12px">${ecat(e.cat).n}${pl ? ` · ${I('pin', 11)} ${esc(pl.name)}` : ''} · ${esc(member(r, e.payer).name)} 결제 · ${e.split.length}명</div></div><div style="text-align:right"><div class="amt">${won(e.amount)}</div><div class="faint num" style="font-size:12px">${e.cur && e.cur !== 'KRW' && curOf(e.cur) ? `${fmtCur(e.cur, e.orig)} · ` : ''}1인 ${won(e.amount / Math.max(1, e.split.length))}</div></div></button>`;
+  return `<button class="r" data-act="edit-exp" data-id="${e.id}">${catIc(ecat(e.cat), 19)}<div class="grow"><b>${esc(e.title)}</b>${e.photos?.length ? ` <span class="faint" title="영수증 ${e.photos.length}장" style="display:inline-flex;vertical-align:-3px">${I('clip', 15)}</span>` : ''}<div class="faint" style="font-size:12px">${ecat(e.cat).n}${pl ? ` · ${I('pin', 11)} ${esc(pl.name)}` : ''} · ${esc(member(r, e.payer).name)} 결제 · ${e.split.length}명</div></div><div style="text-align:right"><div class="amt">${won(e.amount)}</div><div class="faint num" style="font-size:12px">${e.cur && e.cur !== 'KRW' && curOf(e.cur) ? `${fmtCur(e.cur, e.orig)} · ` : ''}1인 ${won(e.amount / Math.max(1, e.split.length))}</div></div></button>`;
 }
 function settle(r) {
   const bal = {}; r.members.forEach((m) => (bal[m.id] = 0));
@@ -1776,8 +1789,8 @@ function packTab(r) {
 
 // ───── 티켓·서류 보관함 ─────
 const DKINDS = [
-  { k: 'air', n: '항공권', c: '#3b82f6', i: 'plane' }, { k: 'stay', n: '숙소 예약', c: '#0fa37a', i: 'bed' }, { k: 'ticket', n: '입장권·티켓', c: '#f2a100', i: 'ticket' },
-  { k: 'move', n: '교통', c: '#14b8a6', i: 'bus' }, { k: 'receipt', n: '영수증', c: '#ff6a47', i: 'receipt' }, { k: 'etc', n: '기타', c: '#94a3b8', i: 'more' },
+  { k: 'air', n: '항공권', c: '#3b82f6', i: 'catPlane' }, { k: 'stay', n: '숙소 예약', c: '#0fa37a', i: 'catStay' }, { k: 'ticket', n: '입장권·티켓', c: '#f2a100', i: 'catPlay' },
+  { k: 'move', n: '교통', c: '#14b8a6', i: 'catMove' }, { k: 'receipt', n: '영수증', c: '#ff6a47', i: 'catReceipt' }, { k: 'etc', n: '기타', c: '#94a3b8', i: 'catEtc' },
 ];
 const dkind = (k) => DKINDS.find((x) => x.k === k) || DKINDS[5];
 function vaultSeg(r, cur) {
