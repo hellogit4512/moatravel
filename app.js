@@ -2579,10 +2579,6 @@ document.addEventListener('drop', (ev) => {
   placeInDay(r, p, d, idx); dragId = null; render();
 });
 
-// ───────── 시작 ─────────
-applyTheme();
-matchMedia('(prefers-color-scheme:dark)').addEventListener('change', () => { if (S.theme === 'auto') { applyTheme(); render(); } });
-if (/^#(join|s)=/.test(location.hash)) checkJoin(); else render();
 
 // 선택 표시 애니메이션(Sliding pill): 탭·일차·보기 전환 때 선택 칸이 통통 튀며 새 자리로 미끄러져요
 const GLIDE = ['.bnav', '.side .nav', '.seg', '.daychips-c'];
@@ -2675,3 +2671,8 @@ function applyMapW() {
   document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end);
   document.addEventListener('dblclick', (e) => { if (!e.target.closest?.('[data-grip]')) return; delete S.mapH; save(); document.documentElement.style.removeProperty('--map-h'); mapCtl?.resize(); toast('지도 크기를 기본으로 돌렸어요'); });
 })();
+
+// ───────── 시작 (모든 설정·함수가 준비된 뒤, 파일 맨 끝에서) ─────────
+applyTheme();
+matchMedia('(prefers-color-scheme:dark)').addEventListener('change', () => { if (S.theme === 'auto') { applyTheme(); render(); } });
+if (/^#(join|s)=/.test(location.hash)) checkJoin(); else render();
