@@ -168,4 +168,11 @@ function logoCat(o = {}) {
 }
 const catOpts = (slot, o = {}) => (slot === 's' ? CAT_KINDS : slot === 'p' ? catPatList(o.c) : slot === 't' ? CAT_TILES.map((c, i) => [`배경 ${i + 1}`, c]) : CAT_PARTS[{ c: 'coat', e: 'face', g: 'glass', h: 'head', n: 'neck', d: 'hand', b: 'tail' }[slot]]);
 const catHasPat = (o) => typeof CAT_PARTS.coat[+o.c || 0]?.[1] === 'function';
-if (typeof module !== 'undefined') module.exports = { logoCat, CAT_KINDS, CAT_PARTS, CAT_SLOTS, CAT_TILES, CAT_PAT, catOpts, catHasPat };
+// 대화방 스티커: 내가 꾸민 캐릭터가 표정·소품만 바꿔서 나와요 (o 에 덮어써요)
+const CAT_STICKERS = [
+  ['좋아!', { e: 10, g: 1 }], ['최고', { e: 5 }], ['출발!', { e: 6, d: 8 }], ['사진 찍자', { e: 1, n: 4 }],
+  ['배고파', { e: 13 }], ['졸려', { e: 4 }], ['어디야?', { e: 8, d: 9 }], ['보냈어', { e: 15 }],
+  ['부탁해', { e: 14, g: 1 }], ['아쉬워', { e: 7 }], ['화났어', { e: 11 }], ['메롱', { e: 9 }],
+];
+const catSticker = (o, i) => { const st = CAT_STICKERS[i]; return st ? logoCat({ ...(o || {}), g: 0, ...st[1] }) : ''; };
+if (typeof module !== 'undefined') module.exports = { catSticker, CAT_STICKERS, logoCat, CAT_KINDS, CAT_PARTS, CAT_SLOTS, CAT_TILES, CAT_PAT, catOpts, catHasPat };

@@ -861,3 +861,17 @@ th:hover .col-rs::after,.col-rs.on::after{background:var(--accent)}
 .crew-m:hover,.crew-m:focus-visible{transform:translateY(-3px) rotate(-4deg)}
 .crew-m .av{box-shadow:0 2px 6px rgba(15,60,45,.14)}
 .msg .av.cat-av,.r .av.cat-av{box-shadow:0 2px 6px rgba(15,60,45,.12)}
+
+/* 대화방 스티커: 내 캐릭터가 크게 */
+.stk{display:flex;flex-direction:column;align-items:center;gap:2px;padding:2px}
+.stk svg{width:104px;height:104px;display:block;filter:drop-shadow(0 6px 14px rgba(15,60,45,.16))}
+.stk span{font-size:12.5px;font-weight:800;color:var(--muted)}
+.msg.new .stk svg{animation:stkPop .5s cubic-bezier(.34,1.6,.5,1)}
+@keyframes stkPop{0%{transform:scale(.4) rotate(-8deg);opacity:0}100%{transform:none;opacity:1}}
+.stk-btn{flex:none;color:var(--muted)}
+.stk-btn.on{color:var(--accent);background:var(--accent-soft)}
+.stk-panel{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:6px;padding:10px 12px;border-top:1px solid var(--line);background:var(--surface);max-height:236px;overflow-y:auto}
+.stk-pick{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;border:0;border-radius:12px;background:var(--sunk);cursor:pointer;font:inherit;font-size:11.5px;font-weight:700;color:var(--muted);transition:transform .12s}
+.stk-pick svg{width:56px;height:56px;display:block}
+.stk-pick:hover{background:var(--accent-soft);color:var(--accent)}
+.stk-pick:active{transform:scale(.92)}
