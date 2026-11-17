@@ -7,15 +7,14 @@
 const KEY = 'moa.v2';
 const COLORS = ['#0fa37a', '#ff6a47', '#3b82f6', '#f2a100', '#8b5cf6', '#14b8a6', '#ec4899', '#64748b', '#84cc16', '#0ea5e9'];
 const TONES = [['#0fa37a', '#ffffff'], ['#ff6a47', '#ffffff'], ['#3b82f6', '#ffffff'], ['#ffc53d', '#3a2b00'], ['#8b5cf6', '#ffffff'], ['#14b8a6', '#ffffff'], ['#ec4899', '#ffffff'], ['#1f2a26', '#e9f1ed']];
-const CATS = [
-  { k: 'spot', n: '관광', c: '#0fa37a', i: 'catSpot', a: ['명소'] }, { k: 'food', n: '맛집', c: '#ff6a47', i: 'catFood' }, { k: 'cafe', n: '카페', c: '#c2803d', i: 'catCafe' },
-  { k: 'stay', n: '숙소', c: '#3b82f6', i: 'catStay' }, { k: 'move', n: '교통', c: '#14b8a6', i: 'catMove' },
-  { k: 'shop', n: '쇼핑', c: '#8b5cf6', i: 'catShop' }, { k: 'etc', n: '기타', c: '#94a3b8', i: 'catEtc' },
-];
+// 분류는 하나로 통일 (장소·일정·정산 모두 같은 6개). 예전 장소 분류(명소·맛집·카페·숙소)는 보여줄 때 자동으로 맞춰요
 const ECATS = [
-  { k: 'food', n: '식비', c: '#ff6a47', i: 'catFood' }, { k: 'move', n: '교통', c: '#3b82f6', i: 'catMove' }, { k: 'stay', n: '숙박', c: '#0fa37a', i: 'catStay' },
-  { k: 'play', n: '관광', c: '#f2a100', i: 'catSpot', a: ['명소'] }, { k: 'shop', n: '쇼핑', c: '#8b5cf6', i: 'catShop' }, { k: 'etc', n: '기타', c: '#94a3b8', i: 'catEtc' },
+  { k: 'food', n: '식비', c: '#ff6a47', i: 'catFood', a: ['맛집', '카페', 'cafe'] }, { k: 'move', n: '교통', c: '#3b82f6', i: 'catMove', a: ['항공권'] }, { k: 'stay', n: '숙박', c: '#0fa37a', i: 'catStay', a: ['숙소'] },
+  { k: 'play', n: '관광', c: '#f2a100', i: 'catSpot', a: ['명소', 'spot'] }, { k: 'shop', n: '쇼핑', c: '#8b5cf6', i: 'catShop' }, { k: 'etc', n: '기타', c: '#94a3b8', i: 'catEtc' },
 ];
+const CATS = ECATS;
+const CK = { spot: 'play', cafe: 'food' };
+const ck = (k) => CK[k] || k;
 const MOODS = ['😆', '🥰', '😌', '🤤', '😴', '🥲'];
 const TABS = [
   { k: 'today', n: '오늘', i: 'sun' }, { k: 'places', n: '모아둔 곳', i: 'pin' }, { k: 'plan', n: '우리 일정', i: 'cal' },
@@ -124,7 +123,7 @@ const enc = encodeURIComponent;
 const won = (n) => Math.round(n).toLocaleString('ko-KR') + '원';
 // 분류 표시: 색 점 대신 분류 색으로 칠한 아이콘 배지 (아이콘이 없으면 점)
 const catIc = (c, s = 17) => (c.i ? `<span class="cic" style="--c:${c.c}" title="${c.n}">${I(c.i, s, 2)}</span>` : `${catIc(c)}`);
-const cat = (k) => CATS.find((c) => c.k === k) || CATS[CATS.length - 1];
+const cat = (k) => CATS.find((c) => c.k === ck(k)) || CATS[CATS.length - 1];
 const ecat = (k) => ECATS.find((c) => c.k === k) || ECATS[ECATS.length - 1];
 const pad = (n) => String(n).padStart(2, '0');
 const isoDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -333,10 +332,10 @@ function demoRoom() {
   const P = (name, c, addr, memo, by, hearts, day, lat, lng, order, time = '') => ({ id: uid(), name, cat: c, addr, memo, by, hearts, day, lat, lng, order, time, comments: [], at: now() - (10 - order) * 6e5 - hearts.length * 1e5, upd: now() });
   r.places = [
     P('동문시장', 'food', '제주 제주시 관덕로14길 20', '먹고 싶은 거 하나씩 골라서 나눠 먹기', mi, [mi, yu], 1, 33.5122, 126.5269, 0, '12:00'),
-    P('함덕해수욕장', 'spot', '제주 제주시 조천읍 함덕리', '첫날은 바다부터! 해 질 때 같이 산책하자.', yu, [yu, mi, ji], 1, 33.5432, 126.6697, 1, '17:30'),
-    P('비자림', 'spot', '제주 제주시 구좌읍 비자숲길 55', '여기는 천천히 걸어보고 싶어', ji, [ji, me], 2, 33.4900, 126.8090, 0, '10:00'),
-    P('성산일출봉', 'spot', '제주 서귀포시 성산읍 성산리', '일출은 무리일까? 다들 의견 알려줘!', yu, [yu, me], null, 33.4581, 126.9425, 3),
-    P('애월 바다 보이는 카페', 'cafe', '제주 제주시 애월읍 애월해안로', '마지막 날 공항 가기 전에 들르면 좋겠어.', mi, [mi], null, 33.4636, 126.3100, 4),
+    P('함덕해수욕장', 'play', '제주 제주시 조천읍 함덕리', '첫날은 바다부터! 해 질 때 같이 산책하자.', yu, [yu, mi, ji], 1, 33.5432, 126.6697, 1, '17:30'),
+    P('비자림', 'play', '제주 제주시 구좌읍 비자숲길 55', '여기는 천천히 걸어보고 싶어', ji, [ji, me], 2, 33.4900, 126.8090, 0, '10:00'),
+    P('성산일출봉', 'play', '제주 서귀포시 성산읍 성산리', '일출은 무리일까? 다들 의견 알려줘!', yu, [yu, me], null, 33.4581, 126.9425, 3),
+    P('애월 바다 보이는 카페', 'food', '제주 제주시 애월읍 애월해안로', '마지막 날 공항 가기 전에 들르면 좋겠어.', mi, [mi], null, 33.4636, 126.3100, 4),
   ];
   r.places[3].comments.push({ id: uid(), by: mi, text: '일출 말고 오후에 가도 좋을 듯!', at: now() - 3e6 });
   const t0 = now() - 864e5;
@@ -394,7 +393,7 @@ async function sdk(kind) {
     return true;
   } catch (e) { failed[kind] = true; return false; }
 }
-const KAKAO_CAT = { FD6: 'food', CE7: 'cafe', AD5: 'stay', AT4: 'spot', CT1: 'spot', MT1: 'shop', CS2: 'shop', SW8: 'move', PK6: 'move', OL7: 'move' };
+const KAKAO_CAT = { FD6: 'food', CE7: 'food', AD5: 'stay', AT4: 'play', CT1: 'play', MT1: 'shop', CS2: 'shop', SW8: 'move', PK6: 'move', OL7: 'move' };
 function center(r) {
   const p = r.places.filter((x) => x.lat); if (!p.length) return null;
   return [p.reduce((s, x) => s + x.lat, 0) / p.length, p.reduce((s, x) => s + x.lng, 0) / p.length];
@@ -411,7 +410,7 @@ async function searchPlaces(q, r) {
       } else {
         const { Place } = await google.maps.importLibrary('places');
         const { places } = await Place.searchByText({ textQuery: q, fields: ['displayName', 'formattedAddress', 'location', 'id', 'primaryTypeDisplayName', 'types'], language: 'ko', maxResultCount: 10 });
-        const gcat = (t = []) => (t.includes('cafe') ? 'cafe' : t.includes('restaurant') || t.includes('food') ? 'food' : t.includes('lodging') ? 'stay' : t.some((x) => /airport|station|transit|car_rental|parking|gas_station|bus|subway|train|ferry/.test(x)) ? 'move' : t.some((x) => /store|shopping/.test(x)) ? 'shop' : t.some((x) => /tourist|park|museum|natural/.test(x)) ? 'spot' : undefined);
+        const gcat = (t = []) => (t.includes('cafe') ? 'food' : t.includes('restaurant') || t.includes('food') ? 'food' : t.includes('lodging') ? 'stay' : t.some((x) => /airport|station|transit|car_rental|parking|gas_station|bus|subway|train|ferry/.test(x)) ? 'move' : t.some((x) => /store|shopping/.test(x)) ? 'shop' : t.some((x) => /tourist|park|museum|natural/.test(x)) ? 'play' : undefined);
         return { src: 'google', items: places.map((p) => ({ name: p.displayName, addr: p.formattedAddress, lat: p.location.lat(), lng: p.location.lng(), gid: p.id, cat: gcat(p.types), hint: p.primaryTypeDisplayName || '' })) };
       }
     } catch (e) { console.warn('[모아여행] 지도 검색 실패, OSM으로 대체', e); }
@@ -421,7 +420,7 @@ async function searchPlaces(q, r) {
     const res = await fetch(`https://photon.komoot.io/api/?q=${enc(q)}&limit=10${c ? `&lat=${c[0]}&lon=${c[1]}` : ''}`);
     const js = await res.json();
     if (js.features?.length) {
-      const oc = (v = '') => (/restaurant|fast_food|food|bar|pub/.test(v) ? 'food' : /cafe|bakery/.test(v) ? 'cafe' : /hotel|guest|hostel|motel|apartment/.test(v) ? 'stay' : /aerodrome|airport|station|bus_stop|ferry|car_rental|parking|fuel|terminal/.test(v) ? 'move' : /mall|shop|market|supermarket|department/.test(v) ? 'shop' : /attraction|viewpoint|beach|park|museum|peak|forest|garden|castle|temple|island/.test(v) ? 'spot' : undefined);
+      const oc = (v = '') => (/restaurant|fast_food|food|bar|pub/.test(v) ? 'food' : /cafe|bakery/.test(v) ? 'food' : /hotel|guest|hostel|motel|apartment/.test(v) ? 'stay' : /aerodrome|airport|station|bus_stop|ferry|car_rental|parking|fuel|terminal/.test(v) ? 'move' : /mall|shop|market|supermarket|department/.test(v) ? 'shop' : /attraction|viewpoint|beach|park|museum|peak|forest|garden|castle|temple|island/.test(v) ? 'play' : undefined);
       return { src: 'osm', items: js.features.map((f) => { const p = f.properties; return { cat: oc(p.osm_value), name: p.name || p.street || q, addr: [p.state, p.city || p.county, p.district, p.street, p.housenumber].filter(Boolean).join(' ') || p.country || '', lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0], hint: p.osm_value?.replace(/_/g, ' ') }; }) };
     }
   } catch (e) { /* 다음 */ }
@@ -836,8 +835,8 @@ function home() {
     </div>
     <div class="preview" aria-hidden="${next ? 'false' : 'true'}">
       ${next ? `<button class="badge-next" data-act="open" data-id="${next.id}"><div class="dday-big">${dday(next)}</div><div class="grow"><div style="font-weight:700">${esc(next.name)}</div><div class="faint" style="font-size:13px">${esc(next.dest)} · ${range(next)} · ${nights(next)}</div></div><span style="transform:rotate(180deg);color:var(--faint)">${I('back', 18)}</span></button>` : ''}
-      ${previewCard('관광', CATS[0].c, '유진', '#ff6a47', '함덕해수욕장', '첫날은 바다부터! 해 질 때 같이 산책하자.', 3, '1일차 17:30')}
-      ${previewCard('맛집', CATS[1].c, '민수', '#3b82f6', '동문시장', '먹고 싶은 거 하나씩 골라서 나눠 먹기', 2, '1일차 12:00')}
+      ${previewCard('관광', cat('play').c, '유진', '#ff6a47', '함덕해수욕장', '첫날은 바다부터! 해 질 때 같이 산책하자.', 3, '1일차 17:30')}
+      ${previewCard('식비', cat('food').c, '민수', '#3b82f6', '동문시장', '먹고 싶은 거 하나씩 골라서 나눠 먹기', 2, '1일차 12:00')}
     </div>
   </section>
 
@@ -940,7 +939,7 @@ function chatTab(r) {
 function placesTab(r) {
   let list = r.places.slice();
   if (ui.filter === 'none') list = list.filter((p) => !p.day);
-  else if (ui.filter !== 'all') list = list.filter((p) => p.cat === ui.filter);
+  else if (ui.filter !== 'all') list = list.filter((p) => ck(p.cat) === ui.filter);
   const q = ui.q.trim().toLowerCase();
   if (q) list = list.filter((p) => `${p.name} ${p.addr || ''} ${p.memo || ''} ${member(r, p.by).name}`.toLowerCase().includes(q));
   list.sort(ui.sort === 'heart' ? (a, b) => b.hearts.length - a.hearts.length || b.at - a.at : (a, b) => b.at - a.at);
@@ -953,7 +952,7 @@ function placesTab(r) {
     <div class="chips" role="tablist">
       <button class="chip ${ui.filter === 'all' ? 'on' : ''}" data-act="filter" data-k="all">${catIc({ c: 'var(--accent)', n: '전체', i: 'cat' })}전체 ${r.places.length}</button>
       <button class="chip ${ui.filter === 'none' ? 'on' : ''}" data-act="filter" data-k="none">${catIc({ c: 'var(--muted)', n: '날짜 미정', i: 'catQ' })}날짜 미정</button>
-      ${CATS.filter((c) => r.places.some((p) => p.cat === c.k)).map((c) => `<button class="chip ${ui.filter === c.k ? 'on' : ''}" data-act="filter" data-k="${c.k}">${catIc(c)}${c.n}</button>`).join('')}
+      ${CATS.filter((c) => r.places.some((p) => ck(p.cat) === c.k)).map((c) => `<button class="chip ${ui.filter === c.k ? 'on' : ''}" data-act="filter" data-k="${c.k}">${catIc(c)}${c.n}</button>`).join('')}
     </div>
     <div class="row">
       ${showList ? `<div class="seg"><button class="${ui.sort === 'new' ? 'on' : ''}" data-act="sort" data-k="new">최신</button><button class="${ui.sort === 'heart' ? 'on' : ''}" data-act="sort" data-k="heart">${I('heart', 14, 2)}인기</button></div>` : ''}
@@ -1021,7 +1020,7 @@ function placeMenu(r, p) {
 }
 function placeModal(r, p, pre = {}) {
   const isNew = !p;
-  p = p || { name: '', cat: 'spot', addr: '', memo: '', url: '', lat: null, lng: null };
+  p = p || { name: '', cat: 'play', addr: '', memo: '', url: '', lat: null, lng: null };
   const pv = provider(r);
   let picked = { lat: p.lat, lng: p.lng, gid: p.gid, kid: p.kid };
   const form = openModal({
@@ -1032,7 +1031,7 @@ function placeModal(r, p, pre = {}) {
       </div>
       <div class="results" aria-live="polite"></div>
       <label class="field"><span>이름</span><input type="text" name="name" required maxlength="60" value="${esc(p.name)}"></label>
-      <div class="field"><span>분류</span><div class="chips" style="flex-wrap:wrap">${CATS.map((c) => `<label class="chip ${p.cat === c.k ? 'on' : ''}"><input type="radio" name="cat" value="${c.k}" ${p.cat === c.k ? 'checked' : ''}>${catIc(c)}${c.n}</label>`).join('')}</div></div>
+      <div class="field"><span>분류</span><div class="chips" style="flex-wrap:wrap">${CATS.map((c) => `<label class="chip ${ck(p.cat) === c.k ? 'on' : ''}"><input type="radio" name="cat" value="${c.k}" ${ck(p.cat) === c.k ? 'checked' : ''}>${catIc(c)}${c.n}</label>`).join('')}</div></div>
       <label class="field"><span>주소</span><input type="text" name="addr" maxlength="140" value="${esc(p.addr)}"></label>
       <div class="row" style="margin-top:-8px;gap:6px"><div class="loc faint grow" style="font-size:12.5px;display:flex;align-items:center;gap:4px">${I('pin', 14)}${p.lat ? '지도 위치가 연결됐어요' : '검색하거나 지도에서 직접 고르면 표시돼요'}</div><button type="button" class="btn sm" data-pickmap>${I('map', 15)}지도에서 고르기</button></div>
       <div class="picker hidden"><div class="picker-map"></div><div class="faint" style="font-size:12px;margin-top:6px">지도를 눌러 위치를 찍으세요. 주소는 자동으로 채워져요.</div></div>
@@ -1063,7 +1062,7 @@ function placeModal(r, p, pre = {}) {
       const x = res.items[b.dataset.i];
       form.name.value = x.name; form.addr.value = x.addr || '';
       picked = { lat: +(+x.lat).toFixed(6), lng: +(+x.lng).toFixed(6), gid: x.gid, kid: x.kid };
-      if (x.cat) { const rb = form.querySelector(`input[name=cat][value=${x.cat}]`); if (rb) { rb.checked = true; rb.dispatchEvent(new Event('change', { bubbles: true })); } }
+      if (x.cat) { const rb = form.querySelector(`input[name=cat][value=${ck(x.cat)}]`); if (rb) { rb.checked = true; rb.dispatchEvent(new Event('change', { bubbles: true })); } }
       if (x.url && !form.url.value) form.url.value = x.url;
       $('.loc', form).innerHTML = `${I('check', 14, 2.2)}<span style="color:var(--accent)">지도 위치가 연결됐어요</span>`;
       box.innerHTML = ''; form.memo.focus();
@@ -1321,7 +1320,7 @@ function planSheet(r) {
       ${cell(p, 'order', d ? inp(p, 'order', idx, `inputmode="numeric" ${lock ? 'disabled' : ''}`) : '<span class="faint">–</span>')}
       ${cell(p, 'time', inp(p, 'time', p.time, 'placeholder="00:00" inputmode="numeric" maxlength="5"'))}
       ${cell(p, 'name', inp(p, 'name', p.name, 'maxlength="60"'))}
-      ${cell(p, 'cat', `<select data-cell data-id="${p.id}" data-f="cat" aria-label="분류">${CATS.map((c) => `<option value="${c.k}" ${p.cat === c.k ? 'selected' : ''}>${c.n}</option>`).join('')}</select>`)}
+      ${cell(p, 'cat', `<select data-cell data-id="${p.id}" data-f="cat" aria-label="분류">${CATS.map((c) => `<option value="${c.k}" ${ck(p.cat) === c.k ? 'selected' : ''}>${c.n}</option>`).join('')}</select>`)}
       ${cell(p, 'addr', inp(p, 'addr', p.addr, 'maxlength="120"'))}
       ${cell(p, 'memo', inp(p, 'memo', p.memo, 'maxlength="300"'))}
       <td class="c-ro num">${p.hearts.length || ''}</td>
@@ -1375,7 +1374,6 @@ const sheetStyle = (cols = SHEET_COLS) => `width:${cols.reduce((a, c) => a + col
 })();
 const moneyViewSeg = () => `<div class="seg"><button class="${ui.moneyView !== 'table' ? 'on' : ''}" data-act="money-view" data-k="list" aria-label="목록으로 보기" title="목록으로 보기">${I('grid', 16)}</button><button class="${ui.moneyView === 'table' ? 'on' : ''}" data-act="money-view" data-k="table" aria-label="표로 보기" title="표로 보기">${I('list', 16)}표</button></div>`;
 // 일정 표의 '지출' 칸: 비어 있으면 새 지출, 1건이면 그 금액 수정, 여러 건이면 목록 열기
-const P2E = { food: 'food', cafe: 'food', stay: 'stay', move: 'move', shop: 'shop', spot: 'play', etc: 'etc' };
 const defCur = (r) => { const ks = Object.keys(r.fx || {}).filter((k) => curOf(k)); return ks.includes(guessCur(r)) ? guessCur(r) : ks[0] || 'KRW'; };
 function spentCell(r, p) {
   const lx = r.expenses.filter((e) => e.pid === p.id);
@@ -1410,7 +1408,7 @@ function placeSpentEdit(r, p, v) {
   if (cur !== 'KRW' && !r.fx?.[cur]) { toast('먼저 정산 탭에서 환율을 정해주세요'); return render(); }
   const money = cur === 'KRW' ? { cur: 'KRW', orig: 0, rate: 0, amount: Math.round(n) } : { cur, orig: n, rate: r.fx[cur], amount: Math.round(n * r.fx[cur]) };
   if (e) { Object.assign(e, money); touch(r, e); }
-  else { const me = meId(r), ne = { id: uid(), title: p.name, cat: P2E[p.cat] || 'etc', payer: me, split: r.members.map((m) => m.id), day: p.day || 0, pid: p.id, photos: [], at: now(), ...money }; r.expenses.push(ne); touch(r, ne); toast(`'${p.name}' 지출 ${won(ne.amount)} · 낸 사람 나, 전원이 나눠요`, { label: '자세히', fn() { expModal(r, ne); } }); }
+  else { const me = meId(r), ne = { id: uid(), title: p.name, cat: ck(p.cat) || 'etc', payer: me, split: r.members.map((m) => m.id), day: p.day || 0, pid: p.id, photos: [], at: now(), ...money }; r.expenses.push(ne); touch(r, ne); toast(`'${p.name}' 지출 ${won(ne.amount)} · 낸 사람 나, 전원이 나눠요`, { label: '자세히', fn() { expModal(r, ne); } }); }
   render();
 }
 function placeExps(r, p) {
@@ -1459,7 +1457,7 @@ async function sheetAdd(r, f) {
   render(); $('.sheet-add input')?.focus();
   try {
     const res = await searchPlaces(`${r.dest || ''} ${name}`.trim(), r), hit = res?.items?.[0];
-    if (hit?.lat) { Object.assign(p, { lat: hit.lat, lng: hit.lng, addr: hit.addr || '', cat: hit.cat || p.cat, kid: hit.kid, gid: hit.gid }); touch(r, p); safeRender(); }
+    if (hit?.lat) { Object.assign(p, { lat: hit.lat, lng: hit.lng, addr: hit.addr || '', cat: ck(hit.cat || p.cat), kid: hit.kid, gid: hit.gid }); touch(r, p); safeRender(); }
   } catch (e) { /* 위치 없이 둬요 */ }
 }
 
@@ -1790,8 +1788,8 @@ function packTab(r) {
 
 // ───── 티켓·서류 보관함 ─────
 const DKINDS = [
-  { k: 'air', n: '교통', c: '#3b82f6', i: 'catMove', a: ['항공권'] }, { k: 'stay', n: '숙소 예약', c: '#0fa37a', i: 'catStay' }, { k: 'ticket', n: '입장권·티켓', c: '#f2a100', i: 'catPlay' },
-  { k: 'receipt', n: '영수증', c: '#ff6a47', i: 'catReceipt' }, { k: 'etc', n: '기타', c: '#94a3b8', i: 'catEtc' },
+  { k: 'air', n: '교통', c: '#3b82f6', i: 'catMove', a: ['항공권'] }, { k: 'stay', n: '숙소 예약', c: '#0fa37a', i: 'catStay' }, { k: 'ticket', n: '입장권·티켓', c: '#f2a100', i: 'catSpot' },
+  { k: 'receipt', n: '영수증', c: '#64748b', i: 'catReceipt' }, { k: 'etc', n: '기타', c: '#94a3b8', i: 'catEtc' },
 ];
 // 항공권·교통은 '교통' 하나로 합쳤어요 (예전에 'move'로 올린 서류도 교통)
 const dkind = (k) => DKINDS.find((x) => x.k === (k === 'move' ? 'air' : k)) || DKINDS[DKINDS.length - 1];
@@ -1944,7 +1942,7 @@ function overviewSheet(X, r) {
   const bold = { font: { bold: true } };
 
   // ── 왼쪽: 총 일정 ──
-  const placeCats = CATS.filter((c) => r.places.some((p) => p.cat === c.k));
+  const placeCats = CATS.filter((c) => r.places.some((p) => ck(p.cat) === c.k));
   const L = 1, LW = Math.max(n, placeCats.length, 1);
   merge(0, L, L + LW - 1, `총 일정 (${undated(r) ? '날짜 미정' : `${r.start.replace(/-/g, '.')} ~ ${r.end.replace(/-/g, '.')}`} - ${nights(r)})`, st(XC.title, { font: { bold: true, sz: 13 } }));
   for (let d = 1; d <= n; d++) put(1, L + d - 1, d);
@@ -1964,7 +1962,7 @@ function overviewSheet(X, r) {
     row += h;
   }
   // 숙소: 들어가는 날부터 다음 숙소 전날(마지막 숙소는 마지막 밤)까지 한 줄 띠로
-  const stays = r.places.filter((p) => p.cat === 'stay' && p.day >= 1 && p.day <= n).sort((a, b) => a.day - b.day || sortPlan(a, b));
+  const stays = r.places.filter((p) => ck(p.cat) === 'stay' && p.day >= 1 && p.day <= n).sort((a, b) => a.day - b.day || sortPlan(a, b));
   stays.forEach((p, i) => {
     const next = stays.slice(i + 1).find((q) => q.day > p.day);
     const end = Math.max(p.day, Math.min(n, next ? next.day - 1 : n - 1));
@@ -1975,7 +1973,7 @@ function overviewSheet(X, r) {
     row += 2;
     placeCats.forEach((c, i) => {
       put(row, L + i, c.n, st(XC.head, bold));
-      r.places.filter((p) => p.cat === c.k).sort((a, b) => b.hearts.length - a.hearts.length || (a.at || 0) - (b.at || 0))
+      r.places.filter((p) => ck(p.cat) === c.k).sort((a, b) => b.hearts.length - a.hearts.length || (a.at || 0) - (b.at || 0))
         .forEach((p, j) => put(row + 1 + j, L + i, p.name));
     });
   }
@@ -1986,7 +1984,7 @@ function overviewSheet(X, r) {
     const c = M + d - 1;
     put(0, c, `${d}일차`, st(XC.day, bold));
     put(1, c, undated(r) ? '' : dayLabel(r, d), st(XC.date));
-    dayItems(r, d).forEach((p, j) => put(2 + j, c, p.time ? `${p.name}(${p.time})` : p.name, st(p.cat === 'stay' ? XC.stays[stays.indexOf(p) % XC.stays.length] : null)));
+    dayItems(r, d).forEach((p, j) => put(2 + j, c, p.time ? `${p.name}(${p.time})` : p.name, st(ck(p.cat) === 'stay' ? XC.stays[stays.indexOf(p) % XC.stays.length] : null)));
   }
   const pend = dayItems(r, 0);
   if (pend.length) {
