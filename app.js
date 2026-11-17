@@ -8,12 +8,12 @@ const KEY = 'moa.v2';
 const COLORS = ['#0fa37a', '#ff6a47', '#3b82f6', '#f2a100', '#8b5cf6', '#14b8a6', '#ec4899', '#64748b', '#84cc16', '#0ea5e9'];
 const TONES = [['#0fa37a', '#ffffff'], ['#ff6a47', '#ffffff'], ['#3b82f6', '#ffffff'], ['#ffc53d', '#3a2b00'], ['#8b5cf6', '#ffffff'], ['#14b8a6', '#ffffff'], ['#ec4899', '#ffffff'], ['#1f2a26', '#e9f1ed']];
 const CATS = [
-  { k: 'spot', n: '명소', c: '#0fa37a', i: 'catSpot' }, { k: 'food', n: '맛집', c: '#ff6a47', i: 'catFood' }, { k: 'cafe', n: '카페', c: '#c2803d', i: 'catCafe' },
+  { k: 'spot', n: '관광', c: '#0fa37a', i: 'catSpot', a: ['명소'] }, { k: 'food', n: '맛집', c: '#ff6a47', i: 'catFood' }, { k: 'cafe', n: '카페', c: '#c2803d', i: 'catCafe' },
   { k: 'stay', n: '숙소', c: '#3b82f6', i: 'catStay' }, { k: 'shop', n: '쇼핑', c: '#8b5cf6', i: 'catShop' }, { k: 'etc', n: '기타', c: '#94a3b8', i: 'catEtc' },
 ];
 const ECATS = [
   { k: 'food', n: '식비', c: '#ff6a47', i: 'catFood' }, { k: 'move', n: '교통', c: '#3b82f6', i: 'catMove' }, { k: 'stay', n: '숙박', c: '#0fa37a', i: 'catStay' },
-  { k: 'play', n: '관광', c: '#f2a100', i: 'catPlay' }, { k: 'shop', n: '쇼핑', c: '#8b5cf6', i: 'catShop' }, { k: 'etc', n: '기타', c: '#94a3b8', i: 'catEtc' },
+  { k: 'play', n: '관광', c: '#f2a100', i: 'catSpot', a: ['명소'] }, { k: 'shop', n: '쇼핑', c: '#8b5cf6', i: 'catShop' }, { k: 'etc', n: '기타', c: '#94a3b8', i: 'catEtc' },
 ];
 const MOODS = ['😆', '🥰', '😌', '🤤', '😴', '🥲'];
 const TABS = [
@@ -835,7 +835,7 @@ function home() {
     </div>
     <div class="preview" aria-hidden="${next ? 'false' : 'true'}">
       ${next ? `<button class="badge-next" data-act="open" data-id="${next.id}"><div class="dday-big">${dday(next)}</div><div class="grow"><div style="font-weight:700">${esc(next.name)}</div><div class="faint" style="font-size:13px">${esc(next.dest)} · ${range(next)} · ${nights(next)}</div></div><span style="transform:rotate(180deg);color:var(--faint)">${I('back', 18)}</span></button>` : ''}
-      ${previewCard('명소', CATS[0].c, '유진', '#ff6a47', '함덕해수욕장', '첫날은 바다부터! 해 질 때 같이 산책하자.', 3, '1일차 17:30')}
+      ${previewCard('관광', CATS[0].c, '유진', '#ff6a47', '함덕해수욕장', '첫날은 바다부터! 해 질 때 같이 산책하자.', 3, '1일차 17:30')}
       ${previewCard('맛집', CATS[1].c, '민수', '#3b82f6', '동문시장', '먹고 싶은 거 하나씩 골라서 나눠 먹기', 2, '1일차 12:00')}
     </div>
   </section>
@@ -1789,10 +1789,11 @@ function packTab(r) {
 
 // ───── 티켓·서류 보관함 ─────
 const DKINDS = [
-  { k: 'air', n: '항공권', c: '#3b82f6', i: 'catPlane' }, { k: 'stay', n: '숙소 예약', c: '#0fa37a', i: 'catStay' }, { k: 'ticket', n: '입장권·티켓', c: '#f2a100', i: 'catPlay' },
-  { k: 'move', n: '교통', c: '#14b8a6', i: 'catMove' }, { k: 'receipt', n: '영수증', c: '#ff6a47', i: 'catReceipt' }, { k: 'etc', n: '기타', c: '#94a3b8', i: 'catEtc' },
+  { k: 'air', n: '교통', c: '#3b82f6', i: 'catMove', a: ['항공권'] }, { k: 'stay', n: '숙소 예약', c: '#0fa37a', i: 'catStay' }, { k: 'ticket', n: '입장권·티켓', c: '#f2a100', i: 'catPlay' },
+  { k: 'receipt', n: '영수증', c: '#ff6a47', i: 'catReceipt' }, { k: 'etc', n: '기타', c: '#94a3b8', i: 'catEtc' },
 ];
-const dkind = (k) => DKINDS.find((x) => x.k === k) || DKINDS[5];
+// 항공권·교통은 '교통' 하나로 합쳤어요 (예전에 'move'로 올린 서류도 교통)
+const dkind = (k) => DKINDS.find((x) => x.k === (k === 'move' ? 'air' : k)) || DKINDS[DKINDS.length - 1];
 function vaultSeg(r, cur) {
   return `<div class="seg vault-seg" role="tablist"><button class="${cur === 'docs' ? 'on' : ''}" data-act="tab" data-k="docs">${I('ticket', 15)}티켓·서류 <span class="faint">${(r.docs || []).length}</span></button><button class="${cur === 'journal' ? 'on' : ''}" data-act="tab" data-k="journal">${I('camera', 15)}사진·기록 <span class="faint">${r.journal.length}</span></button></div>`;
 }
@@ -1947,8 +1948,8 @@ function overviewSheet(X, r) {
   merge(0, L, L + LW - 1, `총 일정 (${undated(r) ? '날짜 미정' : `${r.start.replace(/-/g, '.')} ~ ${r.end.replace(/-/g, '.')}`} - ${nights(r)})`, st(XC.title, { font: { bold: true, sz: 13 } }));
   for (let d = 1; d <= n; d++) put(1, L + d - 1, d);
   let row = 2;
-  // 항공권(티켓·서류 보관함): 이름은 색 칸, 메모는 줄마다 아래로
-  const air = (r.docs || []).filter((x) => x.kind === 'air' && x.day >= 1 && x.day <= n);
+  // 교통 서류(항공권 등, 티켓·서류 보관함): 이름은 색 칸, 메모는 줄마다 아래로
+  const air = (r.docs || []).filter((x) => (x.kind === 'air' || x.kind === 'move') && x.day >= 1 && x.day <= n);
   if (air.length) {
     let h = 0;
     for (let d = 1; d <= n; d++) {
@@ -2075,7 +2076,7 @@ async function applyExcel(r, pr, er, cr) {
   const num = (v) => +String(v ?? '').replace(/[^\d.-]/g, '') || 0;
   const yes = (v) => /^(o|y|yes|true|1|v|✓|✔|완료|챙김)$/i.test(str(v));
   const n = dayCount(r), me = meId(r);
-  const findCat = (list, v, d) => list.find((c) => c.n === str(v) || c.k === str(v))?.k || d;
+  const findCat = (list, v, d) => list.find((c) => c.n === str(v) || c.k === str(v) || c.a?.includes(str(v)))?.k || d;
   const newMembers = [];
   const mid = (name) => { name = str(name); if (!name || name === '공용') return null; let m = r.members.find((x) => x.name === name); if (!m) { m = { id: uid(), name: name.slice(0, 12), color: COLORS[r.members.length % COLORS.length], upd: now() }; r.members.push(m); newMembers.push(m.name); } return m.id; };
   const plan = { pAdd: [], pUpd: [], eAdd: [], eUpd: [], cAdd: [], cUpd: [] };
