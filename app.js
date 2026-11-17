@@ -719,11 +719,12 @@ function render() {
   document.title = r ? `${rt.tab !== 'chat' && unread(r) ? `(${unread(r)}) ` : ''}${r.name} · 모아여행` : '모아여행 · 함께 모아 만드는 우리 여행';
   const y = scrollY, ae = document.activeElement, keep = ae?.matches?.('.sheet-add input,.sheet-add select') ? `.sheet-add [name="${ae.name}"]` : ae?.dataset?.cell !== undefined ? `[data-cell][data-id="${ae.dataset.id}"][data-f="${ae.dataset.f}"]` : null;
   const sx = $('.sheet-wrap')?.scrollLeft;
-  const gl = glideSnap();
+  const gl = glideSnap(), hs = hscrollSnap();
   $('#app').innerHTML = `<div class="shell ${r ? 'is-room' : 'is-home'}">${side(rt, r)}<div class="content">${topbar(r)}<main class="main" id="main">${r ? roomPage(r, rt.tab) : home()}</main></div>${r ? bnav(rt.tab, r) : ''}</div>`;
   document.body.classList.toggle('is-home', !r);
   if (S.mapH) document.documentElement.style.setProperty('--map-h', S.mapH + 'px');
   applyMapW();
+  hscrollRestore(hs);
   glidePlay(gl);
   // 화면이 바뀔 때만(탭·일차) 부드럽게 등장 — 내용 수정으로 다시 그릴 때는 그대로
   const vk = `${rt.page}:${rt.id || ''}:${rt.tab || ''}`, dk = rt.tab === 'plan' ? `${vk}:${ui.planDay}:${ui.planView}` : '';
@@ -2396,7 +2397,9 @@ document.addEventListener('click', (ev) => {
     },
     'plan-day': () => {
       ui.planDay = +el.dataset.d; ui.mapDay = 0; render();
-      $('.plan-bar')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // 지금 위치는 그대로 두고, 일정 목록 윗부분이 상단 바 밑에 가려졌을 때만 그만큼 올려요
+      const list = $('.days'), bar = $('.plan-bar');
+      if (list && bar) { const gap = list.getBoundingClientRect().top - bar.getBoundingClientRect().bottom - 8; if (gap < 0) scrollBy({ top: gap, behavior: calm() ? 'auto' : 'smooth' }); }
     },
     'plan-map': () => { ui.planMap = !ui.planMap; render(); },
     'map-day': () => {
@@ -2580,6 +2583,21 @@ document.addEventListener('drop', (ev) => {
 });
 
 
+// 옆으로 넘기는 줄(일차 칩 등): 화면을 다시 그려도 넘겨 둔 위치를 지키고, 고른 칩이 가려져 있으면 보이게 살짝 넘겨요
+const HSCROLL = ['.chips', '.days-pick .seg', '.wx-days'];
+function hscrollSnap() {
+  const m = {};
+  HSCROLL.forEach((q) => $$(q).forEach((el, i) => { if (el.scrollLeft) m[`${q}#${i}`] = el.scrollLeft; }));
+  return m;
+}
+function hscrollRestore(m) {
+  HSCROLL.forEach((q) => $$(q).forEach((el, i) => {
+    const x = m[`${q}#${i}`]; if (x) el.scrollLeft = x;
+    const on = el.querySelector(':scope > .on'); if (!on || el.scrollWidth <= el.clientWidth + 1) return;
+    const er = el.getBoundingClientRect(), r = on.getBoundingClientRect();
+    if (r.left < er.left + 8 || r.right > er.right - 24) el.scrollBy({ left: r.left - er.left - (er.width - r.width) / 2, behavior: x && !calm() ? 'smooth' : 'auto' });
+  }));
+}
 // 선택 표시 애니메이션(Sliding pill): 탭·일차·보기 전환 때 선택 칸이 통통 튀며 새 자리로 미끄러져요
 const GLIDE = ['.bnav', '.side .nav', '.seg', '.daychips-c'];
 const calm = () => matchMedia('(prefers-reduced-motion:reduce)').matches;
