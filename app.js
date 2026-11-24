@@ -2488,7 +2488,12 @@ document.addEventListener('click', (ev) => {
     'wx-loc': () => wxLocModal(r),
     'map-toggle': () => { ui.mapOff = !ui.mapOff; saveMapOff(); render(); },
     pending: () => pendingDrawer(r, +el.dataset.d || 0),
-    'place-detail': () => placeDetail(r, P(el.dataset.id)),
+    'place-detail': () => {
+      const p = P(el.dataset.id); if (!p) return;
+      // 일정 목록: 처음 누르면 지도만 그 장소로, 선택된 장소를 한 번 더 누르면 상세 (지도가 없거나 위치가 없으면 바로 상세)
+      if (el.closest('.stop') && p.lat && !ui.mapOff && mapCtl && ui.sel !== p.id) return selPlace(p.id);
+      placeDetail(r, p);
+    },
     'place-exps': () => { const p = P(el.dataset.id); if (p) placeExps(r, p); },
     'money-view': () => { ui.moneyView = el.dataset.k; try { localStorage.setItem('moa.moneyView', ui.moneyView); } catch (e) { /* noop */ } render(); },
     'sheet-exp-del': () => { const e = r.expenses.find((x) => x.id === el.dataset.id); if (e) removeUndo(r, 'expenses', e.id, `'${e.title}' 지출을`); },
