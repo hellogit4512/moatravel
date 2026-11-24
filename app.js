@@ -1968,19 +1968,36 @@ function overviewSheet(X, r) {
     }
     row += h;
   }
-  // 숙소: 들어가는 날부터 다음 숙소 전날(마지막 숙소는 마지막 밤)까지 한 줄 띠로
+  // 숙소: 같은 이름은 하나로 묶고, 들어가는 날부터 나오는 날까지 칸을 합쳐 한 띠로 (1박이면 1·2일차 두 칸)
+  const sk = (p) => String(p.name || '').replace(/\s+/g, '').toLowerCase();
   const stays = r.places.filter((p) => ck(p.cat) === 'stay' && p.day >= 1 && p.day <= n).sort((a, b) => a.day - b.day || sortPlan(a, b));
-  stays.forEach((p, i) => {
-    const next = stays.slice(i + 1).find((q) => q.day > p.day);
-    const end = Math.max(p.day, Math.min(n, next ? next.day - 1 : n - 1));
-    merge(row++, L + p.day - 1, L + end - 1, p.name, st(XC.stays[i % XC.stays.length]));
+  const stayGroups = [];
+  stays.forEach((p) => { let g = stayGroups.find((x) => x.key === sk(p)); if (!g) stayGroups.push((g = { key: sk(p), name: p.name, days: new Set() })); g.days.add(p.day); });
+  const stayColor = (p) => XC.stays[Math.max(0, stayGroups.findIndex((g) => g.key === sk(p))) % XC.stays.length];
+  const bars = [];
+  stayGroups.forEach((g) => {
+    const ds = [...g.days].sort((a, b) => a - b); let a = ds[0], e = ds[0];
+    // 이어진 여러 날에 있으면 첫날~마지막 날(들어가는 날·나오는 날), 하루만 있으면 그날~다음 날(1박)
+    const push = () => bars.push({ name: g.name, s: a, e: e > a ? e : Math.min(n, e + 1), key: g.key });
+    ds.slice(1).forEach((d) => { if (d === e + 1) e = d; else { push(); a = e = d; } });
+    push();
   });
+  // 겹치지 않는 띠는 같은 줄에 (나오는 날과 다음 숙소 들어가는 날이 같으면 다음 줄)
+  const lanes = [];
+  bars.sort((x, y) => x.s - y.s || x.e - y.e).forEach((b) => {
+    let li = lanes.findIndex((end) => end < b.s); if (li < 0) { li = lanes.length; lanes.push(0); }
+    lanes[li] = b.e;
+    merge(row + li, L + b.s - 1, L + b.e - 1, b.name, st(stayColor({ name: b.name })));
+  });
+  row += lanes.length;
   // 분류별로 모아둔 곳
   if (placeCats.length) {
     row += 2;
     placeCats.forEach((c, i) => {
       put(row, L + i, c.n, st(XC.head, bold));
+      const seen = new Set(); // 같은 이름은 한 번만
       r.places.filter((p) => ck(p.cat) === c.k).sort((a, b) => b.hearts.length - a.hearts.length || (a.at || 0) - (b.at || 0))
+        .filter((p) => !seen.has(sk(p)) && seen.add(sk(p)))
         .forEach((p, j) => put(row + 1 + j, L + i, p.name));
     });
   }
@@ -1991,7 +2008,7 @@ function overviewSheet(X, r) {
     const c = M + d - 1;
     put(0, c, `${d}일차`, st(XC.day, bold));
     put(1, c, undated(r) ? '' : dayLabel(r, d), st(XC.date));
-    dayItems(r, d).forEach((p, j) => put(2 + j, c, p.time ? `${p.name}(${p.time})` : p.name, st(ck(p.cat) === 'stay' ? XC.stays[stays.indexOf(p) % XC.stays.length] : null)));
+    dayItems(r, d).forEach((p, j) => put(2 + j, c, p.time ? `${p.name}(${p.time})` : p.name, st(ck(p.cat) === 'stay' ? stayColor(p) : null)));
   }
   const pend = dayItems(r, 0);
   if (pend.length) {
