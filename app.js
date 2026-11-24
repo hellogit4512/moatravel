@@ -1982,14 +1982,8 @@ function overviewSheet(X, r) {
     ds.slice(1).forEach((d) => { if (d === e + 1) e = d; else { push(); a = e = d; } });
     push();
   });
-  // 겹치지 않는 띠는 같은 줄에 (나오는 날과 다음 숙소 들어가는 날이 같으면 다음 줄)
-  const lanes = [];
-  bars.sort((x, y) => x.s - y.s || x.e - y.e).forEach((b) => {
-    let li = lanes.findIndex((end) => end < b.s); if (li < 0) { li = lanes.length; lanes.push(0); }
-    lanes[li] = b.e;
-    merge(row + li, L + b.s - 1, L + b.e - 1, b.name, st(stayColor({ name: b.name })));
-  });
-  row += lanes.length;
+  // 숙소마다 한 줄씩, 들어가는 날 순서대로 계단처럼 내려가요
+  bars.sort((x, y) => x.s - y.s || x.e - y.e).forEach((b) => merge(row++, L + b.s - 1, L + b.e - 1, b.name, st(stayColor({ name: b.name }))));
   // 분류별로 모아둔 곳
   if (placeCats.length) {
     row += 2;
